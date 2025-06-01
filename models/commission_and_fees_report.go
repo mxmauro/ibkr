@@ -17,7 +17,7 @@ type CommissionAndFeesReport struct {
 
 // -----------------------------------------------------------------------------
 
-func newCommissionAndFeesReport() CommissionAndFeesReport {
+func NewCommissionAndFeesReport() CommissionAndFeesReport {
 	return CommissionAndFeesReport{}
 }
 

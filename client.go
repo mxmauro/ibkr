@@ -62,9 +62,6 @@ func NewClient(ctx context.Context, opts Options) (*Client, error) {
 	if len(opts.Address) == 0 {
 		return nil, errors.New("invalid host:port address")
 	}
-	if opts.EventsHandler == nil {
-		return nil, errors.New("invalid incoming message handler")
-	}
 	if len(opts.ConnectOptions) > 0 && !utils.IsPrintableAsciiString(opts.ConnectOptions) {
 		return nil, errors.New("invalid optional capabilities")
 	}

@@ -620,7 +620,9 @@ func (c *Client) processErrorMessage(msgDec *utils.MessageDecoder) error {
 		})
 	} else {
 		// Notify
-		c.eventsHandler.Error(ts, int(code), msg, advancedOrderRejectJson)
+		if c.eventsHandler != nil {
+			c.eventsHandler.Error(ts, int(code), msg, advancedOrderRejectJson)
+		}
 	}
 
 	// Done
@@ -2389,7 +2391,7 @@ func (c *Client) processCurrentTimeInMillisMsg(msgDec *utils.MessageDecoder) err
 }
 
 func (c *Client) readLastTradeDate(msgDec *utils.MessageDecoder, contract *models.ContractDetails, isBond bool) {
-	lastTradeDateOrContractMonth := msgDec.String(false)
+	lastTradeDateOrContractMonth := msgDec.String(false) // YYYYMM or YYYYMMDD
 	if len(lastTradeDateOrContractMonth) > 0 {
 		var split []string
 
