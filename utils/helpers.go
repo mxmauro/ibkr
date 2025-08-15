@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"math"
 	"time"
 )
 
@@ -19,4 +20,8 @@ func IsPrintableAsciiString(s string) bool {
 		}
 	}
 	return true
+}
+
+func EqualFloat(a float64, b float64) bool {
+	return math.Abs(a-b) < 0.0000001
 }

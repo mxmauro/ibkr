@@ -1,116 +1,123 @@
 package common
 
-import (
-	"math"
-)
-
 // -----------------------------------------------------------------------------
 
+// const (
+// UnsetInt   = math.MaxInt32
+// UnsetLong  = math.MaxInt64
+// UnsetFloat = math.MaxFloat64
+// INFINITY_STRING string  = "Infinity"
+// )
+
 const (
-	UNSET_INT int64 = math.MaxInt32
-	// UNSET_LONG      int64   = math.MaxInt64
-	UNSET_FLOAT float64 = math.MaxFloat64
-	// INFINITY_STRING string  = "Infinity"
+	MessageDelimiter = '\x00'
 )
 
 const (
-	ServerVersionProtobufSupport = 201
+	ServerVersionProtobuf                  = 201
+	ServerVersionZeroStrike                = 202
+	ServerVersionProtobufPlaceOrder        = 203
+	ServerVersionProtobufCompletedOrder    = 204
+	ServerVersionProtobufContractData      = 205
+	ServerVersionProtobufMarketData        = 206
+	ServerVersionProtobufAccountsPositions = 207
+	ServerVersionProtobufHistoricalData    = 208
 
-	MinClientVersion = ServerVersionProtobufSupport
-	MaxClientVersion = 202
+	MinClientVersion = ServerVersionProtobuf
+	MaxClientVersion = ServerVersionProtobufAccountsPositions
 
-	MinServerVersion = ServerVersionProtobufSupport
+	MinServerVersion = ServerVersionProtobuf
 )
 
 const (
-	TICK_PRICE                               = 1
-	TICK_SIZE                                = 2
-	ORDER_STATUS                             = 3
-	ERR_MSG                                  = 4
-	OPEN_ORDER                               = 5
-	ACCT_VALUE                               = 6
-	PORTFOLIO_VALUE                          = 7
-	ACCT_UPDATE_TIME                         = 8
-	NEXT_VALID_ID                            = 9
-	CONTRACT_DATA                            = 10
-	EXECUTION_DATA                           = 11
-	MARKET_DEPTH                             = 12
-	MARKET_DEPTH_L2                          = 13
-	NEWS_BULLETINS                           = 14
-	MANAGED_ACCTS                            = 15
-	RECEIVE_FA                               = 16
-	HISTORICAL_DATA                          = 17
-	BOND_CONTRACT_DATA                       = 18
-	SCANNER_PARAMETERS                       = 19
-	SCANNER_DATA                             = 20
-	TICK_OPTION_COMPUTATION                  = 21
-	TICK_GENERIC                             = 45
-	TICK_STRING                              = 46
-	TICK_EFP                                 = 47
-	CURRENT_TIME                             = 49
-	REAL_TIME_BARS                           = 50
-	FUNDAMENTAL_DATA                         = 51
-	CONTRACT_DATA_END                        = 52
-	OPEN_ORDER_END                           = 53
-	ACCT_DOWNLOAD_END                        = 54
-	EXECUTION_DATA_END                       = 55
-	DELTA_NEUTRAL_VALIDATION                 = 56
-	TICK_SNAPSHOT_END                        = 57
-	MARKET_DATA_TYPE                         = 58
-	COMMISSION_AND_FEES_REPORT               = 59
-	POSITION_DATA                            = 61
-	POSITION_END                             = 62
-	ACCOUNT_SUMMARY                          = 63
-	ACCOUNT_SUMMARY_END                      = 64
-	VERIFY_MESSAGE_API                       = 65
-	VERIFY_COMPLETED                         = 66
-	DISPLAY_GROUP_LIST                       = 67
-	DISPLAY_GROUP_UPDATED                    = 68
-	VERIFY_AND_AUTH_MESSAGE_API              = 69
-	VERIFY_AND_AUTH_COMPLETED                = 70
-	POSITION_MULTI                           = 71
-	POSITION_MULTI_END                       = 72
-	ACCOUNT_UPDATE_MULTI                     = 73
-	ACCOUNT_UPDATE_MULTI_END                 = 74
-	SECURITY_DEFINITION_OPTION_PARAMETER     = 75
-	SECURITY_DEFINITION_OPTION_PARAMETER_END = 76
-	SOFT_DOLLAR_TIERS                        = 77
-	FAMILY_CODES                             = 78
-	SYMBOL_SAMPLES                           = 79
-	MKT_DEPTH_EXCHANGES                      = 80
-	TICK_REQ_PARAMS                          = 81
-	SMART_COMPONENTS                         = 82
-	NEWS_ARTICLE                             = 83
-	TICK_NEWS                                = 84
-	NEWS_PROVIDERS                           = 85
-	HISTORICAL_NEWS                          = 86
-	HISTORICAL_NEWS_END                      = 87
-	HEAD_TIMESTAMP                           = 88
-	HISTOGRAM_DATA                           = 89
-	HISTORICAL_DATA_UPDATE                   = 90
-	REROUTE_MKT_DATA_REQ                     = 91
-	REROUTE_MKT_DEPTH_REQ                    = 92
-	MARKET_RULE                              = 93
-	PNL                                      = 94
-	PNL_SINGLE                               = 95
-	HISTORICAL_TICKS                         = 96
-	HISTORICAL_TICKS_BID_ASK                 = 97
-	HISTORICAL_TICKS_LAST                    = 98
-	TICK_BY_TICK                             = 99
-	ORDER_BOUND                              = 100
-	COMPLETED_ORDER                          = 101
-	COMPLETED_ORDERS_END                     = 102
-	REPLACE_FA_END                           = 103
-	WSH_META_DATA                            = 104
-	WSH_EVENT_DATA                           = 105
-	HISTORICAL_SCHEDULE                      = 106
-	USER_INFO                                = 107
-	HISTORICAL_DATA_END                      = 108
-	CURRENT_TIME_IN_MILLIS                   = 109
+	TICK_PRICE                               uint32 = 1
+	TICK_SIZE                                uint32 = 2
+	ORDER_STATUS                             uint32 = 3
+	ERR_MSG                                  uint32 = 4
+	OPEN_ORDER                               uint32 = 5
+	ACCT_VALUE                               uint32 = 6
+	PORTFOLIO_VALUE                          uint32 = 7
+	ACCT_UPDATE_TIME                         uint32 = 8
+	NEXT_VALID_ID                            uint32 = 9
+	CONTRACT_DATA                            uint32 = 10
+	EXECUTION_DATA                           uint32 = 11
+	MARKET_DEPTH                             uint32 = 12
+	MARKET_DEPTH_L2                          uint32 = 13
+	NEWS_BULLETINS                           uint32 = 14
+	MANAGED_ACCTS                            uint32 = 15
+	RECEIVE_FA                               uint32 = 16
+	HISTORICAL_DATA                          uint32 = 17
+	BOND_CONTRACT_DATA                       uint32 = 18
+	SCANNER_PARAMETERS                       uint32 = 19
+	SCANNER_DATA                             uint32 = 20
+	TICK_OPTION_COMPUTATION                  uint32 = 21
+	TICK_GENERIC                             uint32 = 45
+	TICK_STRING                              uint32 = 46
+	TICK_EFP                                 uint32 = 47
+	CURRENT_TIME                             uint32 = 49
+	REAL_TIME_BARS                           uint32 = 50
+	FUNDAMENTAL_DATA                         uint32 = 51
+	CONTRACT_DATA_END                        uint32 = 52
+	OPEN_ORDER_END                           uint32 = 53
+	ACCT_DOWNLOAD_END                        uint32 = 54
+	EXECUTION_DATA_END                       uint32 = 55
+	DELTA_NEUTRAL_VALIDATION                 uint32 = 56
+	TICK_SNAPSHOT_END                        uint32 = 57
+	MARKET_DATA_TYPE                         uint32 = 58
+	COMMISSION_AND_FEES_REPORT               uint32 = 59
+	POSITION_DATA                            uint32 = 61
+	POSITION_END                             uint32 = 62
+	ACCOUNT_SUMMARY                          uint32 = 63
+	ACCOUNT_SUMMARY_END                      uint32 = 64
+	VERIFY_MESSAGE_API                       uint32 = 65
+	VERIFY_COMPLETED                         uint32 = 66
+	DISPLAY_GROUP_LIST                       uint32 = 67
+	DISPLAY_GROUP_UPDATED                    uint32 = 68
+	VERIFY_AND_AUTH_MESSAGE_API              uint32 = 69
+	VERIFY_AND_AUTH_COMPLETED                uint32 = 70
+	POSITION_MULTI                           uint32 = 71
+	POSITION_MULTI_END                       uint32 = 72
+	ACCOUNT_UPDATE_MULTI                     uint32 = 73
+	ACCOUNT_UPDATE_MULTI_END                 uint32 = 74
+	SECURITY_DEFINITION_OPTION_PARAMETER     uint32 = 75
+	SECURITY_DEFINITION_OPTION_PARAMETER_END uint32 = 76
+	SOFT_DOLLAR_TIERS                        uint32 = 77
+	FAMILY_CODES                             uint32 = 78
+	SYMBOL_SAMPLES                           uint32 = 79
+	MKT_DEPTH_EXCHANGES                      uint32 = 80
+	TICK_REQ_PARAMS                          uint32 = 81
+	SMART_COMPONENTS                         uint32 = 82
+	NEWS_ARTICLE                             uint32 = 83
+	TICK_NEWS                                uint32 = 84
+	NEWS_PROVIDERS                           uint32 = 85
+	HISTORICAL_NEWS                          uint32 = 86
+	HISTORICAL_NEWS_END                      uint32 = 87
+	HEAD_TIMESTAMP                           uint32 = 88
+	HISTOGRAM_DATA                           uint32 = 89
+	HISTORICAL_DATA_UPDATE                   uint32 = 90
+	REROUTE_MKT_DATA_REQ                     uint32 = 91
+	REROUTE_MKT_DEPTH_REQ                    uint32 = 92
+	MARKET_RULE                              uint32 = 93
+	PNL                                      uint32 = 94
+	PNL_SINGLE                               uint32 = 95
+	HISTORICAL_TICKS                         uint32 = 96
+	HISTORICAL_TICKS_BID_ASK                 uint32 = 97
+	HISTORICAL_TICKS_LAST                    uint32 = 98
+	TICK_BY_TICK                             uint32 = 99
+	ORDER_BOUND                              uint32 = 100
+	COMPLETED_ORDER                          uint32 = 101
+	COMPLETED_ORDERS_END                     uint32 = 102
+	REPLACE_FA_END                           uint32 = 103
+	WSH_META_DATA                            uint32 = 104
+	WSH_EVENT_DATA                           uint32 = 105
+	HISTORICAL_SCHEDULE                      uint32 = 106
+	USER_INFO                                uint32 = 107
+	HISTORICAL_DATA_END                      uint32 = 108
+	CURRENT_TIME_IN_MILLIS                   uint32 = 109
 )
 
 const (
-	PROTOBUF_MSG_ID int64 = 200
+	PROTOBUF_MSG_ID uint32 = 200
 
 	REQ_MKT_DATA                  = 1
 	CANCEL_MKT_DATA               = 2
@@ -194,3 +201,41 @@ const (
 	REQ_USER_INFO                 = 104
 	REQ_CURRENT_TIME_IN_MILLIS    = 105
 )
+
+var PROTOBUF_MSG_IDS = map[uint32]int32{
+	REQ_EXECUTIONS:               ServerVersionProtobuf,
+	PLACE_ORDER:                  ServerVersionProtobufPlaceOrder,
+	CANCEL_ORDER:                 ServerVersionProtobufPlaceOrder,
+	REQ_GLOBAL_CANCEL:            ServerVersionProtobufPlaceOrder,
+	REQ_ALL_OPEN_ORDERS:          ServerVersionProtobufCompletedOrder,
+	REQ_AUTO_OPEN_ORDERS:         ServerVersionProtobufCompletedOrder,
+	REQ_OPEN_ORDERS:              ServerVersionProtobufCompletedOrder,
+	REQ_COMPLETED_ORDERS:         ServerVersionProtobufCompletedOrder,
+	REQ_CONTRACT_DATA:            ServerVersionProtobufContractData,
+	REQ_MKT_DATA:                 ServerVersionProtobufMarketData,
+	CANCEL_MKT_DATA:              ServerVersionProtobufMarketData,
+	REQ_MKT_DEPTH:                ServerVersionProtobufMarketData,
+	CANCEL_MKT_DEPTH:             ServerVersionProtobufMarketData,
+	REQ_MARKET_DATA_TYPE:         ServerVersionProtobufMarketData,
+	REQ_ACCT_DATA:                ServerVersionProtobufAccountsPositions,
+	REQ_MANAGED_ACCTS:            ServerVersionProtobufAccountsPositions,
+	REQ_POSITIONS:                ServerVersionProtobufAccountsPositions,
+	CANCEL_POSITIONS:             ServerVersionProtobufAccountsPositions,
+	REQ_ACCOUNT_SUMMARY:          ServerVersionProtobufAccountsPositions,
+	CANCEL_ACCOUNT_SUMMARY:       ServerVersionProtobufAccountsPositions,
+	REQ_POSITIONS_MULTI:          ServerVersionProtobufAccountsPositions,
+	CANCEL_POSITIONS_MULTI:       ServerVersionProtobufAccountsPositions,
+	REQ_ACCOUNT_UPDATES_MULTI:    ServerVersionProtobufAccountsPositions,
+	CANCEL_ACCOUNT_UPDATES_MULTI: ServerVersionProtobufAccountsPositions,
+	REQ_HISTORICAL_DATA:          ServerVersionProtobufHistoricalData,
+	CANCEL_HISTORICAL_DATA:       ServerVersionProtobufHistoricalData,
+	REQ_REAL_TIME_BARS:           ServerVersionProtobufHistoricalData,
+	CANCEL_REAL_TIME_BARS:        ServerVersionProtobufHistoricalData,
+	REQ_HEAD_TIMESTAMP:           ServerVersionProtobufHistoricalData,
+	CANCEL_HEAD_TIMESTAMP:        ServerVersionProtobufHistoricalData,
+	REQ_HISTOGRAM_DATA:           ServerVersionProtobufHistoricalData,
+	CANCEL_HISTOGRAM_DATA:        ServerVersionProtobufHistoricalData,
+	REQ_HISTORICAL_TICKS:         ServerVersionProtobufHistoricalData,
+	REQ_TICK_BY_TICK_DATA:        ServerVersionProtobufHistoricalData,
+	CANCEL_TICK_BY_TICK_DATA:     ServerVersionProtobufHistoricalData,
+}

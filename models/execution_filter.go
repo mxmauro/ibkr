@@ -1,28 +1,26 @@
 package models
 
 import (
-	"github.com/mxmauro/ibkr/common"
+	"time"
 )
 
 // -----------------------------------------------------------------------------
 
 type ExecutionFilter struct {
-	ClientID      int64
+	ClientID      int32
 	AcctCode      string
 	Time          string
 	Symbol        string
 	SecType       SecurityType
 	Exchange      string
 	Side          string
-	LastNDays     int64
-	SpecificDates []int64
+	LastNDays     *int32
+	SpecificDates []time.Time
 }
 
 // -----------------------------------------------------------------------------
 
 func NewExecutionFilter() *ExecutionFilter {
-	ef := &ExecutionFilter{
-		LastNDays: common.UNSET_INT,
-	}
-	return ef
+	ef := ExecutionFilter{}
+	return &ef
 }

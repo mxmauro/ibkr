@@ -11,7 +11,7 @@ package models
 // Calculated Opening Price (COP). If your order is not filled on the open, the order is re-submitted as a limit order with
 // the limit price set to the COP or the best bid/ask after the market opens.
 // Products: FUT, STK.
-func AtAuction(action string, quantity Decimal, price float64) *Order {
+func AtAuction(action string, quantity *Decimal, price *float64) *Order {
 	order := NewOrder()
 	order.Action = action
 	order.TIF = "AUC"
@@ -26,7 +26,7 @@ func AtAuction(action string, quantity Decimal, price float64) *Order {
 // A Discretionary order is a limit order submitted with a hidden, specified 'discretionary' amount off the limit price which
 // may be used to increase the price range over which the limit order is eligible to execute. The market sees only the limit price.
 // Products: STK.
-func Discretionary(action string, quantity Decimal, price float64, discretionaryAmount float64) *Order {
+func Discretionary(action string, quantity *Decimal, price *float64, discretionaryAmount float64) *Order {
 	order := NewOrder()
 	order.Action = action
 	order.OrderType = "LMT"
@@ -42,7 +42,7 @@ func Discretionary(action string, quantity Decimal, price float64, discretionary
 // A market order may increase the likelihood of a fill and the speed of execution, but unlike the Limit order a Market order provides no price protection
 // and may fill at a price far lower/higher than the current displayed bid/ask.
 // Products: BOND, CFD, EFP, CASH, FUND, FUT, FOP, OPT, STK, WAR.
-func MarketOrder(action string, quantity Decimal) *Order {
+func MarketOrder(action string, quantity *Decimal) *Order {
 	order := NewOrder()
 	order.Action = action
 	order.OrderType = "MKT"
@@ -59,7 +59,7 @@ func MarketOrder(action string, quantity Decimal) *Order {
 // is held in the system until the trigger price is touched, and is then submitted as a market order. An MIT order is similar to a
 // stop order, except that an MIT sell order is placed above the current market price, and a stop sell order is placed below
 // Products: BOND, CFD, CASH, FUT, FOP, OPT, STK, WAR.
-func MarketIfTouched(action string, quantity Decimal, price float64) *Order {
+func MarketIfTouched(action string, quantity *Decimal, price *float64) *Order {
 	order := NewOrder()
 	order.Action = action
 	order.OrderType = "MIT"
@@ -72,7 +72,7 @@ func MarketIfTouched(action string, quantity Decimal, price float64) *Order {
 // MarketOnClose creates
 // A Market-on-Close (MOC) order is a market order that is submitted to execute as close to the closing price as possible.
 // Products: CFD, FUT, STK, WAR.
-func MarketOnClose(action string, quantity Decimal) *Order {
+func MarketOnClose(action string, quantity *Decimal) *Order {
 	order := NewOrder()
 	order.Action = action
 	order.OrderType = "MOC"
@@ -85,7 +85,7 @@ func MarketOnClose(action string, quantity Decimal) *Order {
 // A Market-on-Open (MOO) order combines a market order with the OPG time in force to create an order that is automatically
 // submitted at the market's open and fills at the market price.
 // Products: CFD, STK, OPT, WAR.
-func MarketOnOpen(action string, quantity Decimal) *Order {
+func MarketOnOpen(action string, quantity *Decimal) *Order {
 	order := NewOrder()
 	order.Action = action
 	order.OrderType = "MKT"
@@ -100,7 +100,7 @@ func MarketOnOpen(action string, quantity Decimal) *Order {
 // to ISE for MPM execution. Market orders execute at the midpoint whenever an eligible contra-order is available. Limit orders
 // execute only when the midpoint price is better than the limit price. Standard MPM orders are completely anonymous.
 // Products: STK.
-func MidpointMatch(action string, quantity Decimal) *Order {
+func MidpointMatch(action string, quantity *Decimal) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -114,7 +114,7 @@ func MidpointMatch(action string, quantity Decimal) *Order {
 // A Midprice order is designed to split the difference between the bid and ask prices, and fill at the current midpoint of
 // the NBBO or better. Set an optional price cap to define the highest price (for a buy order) or the lowest price (for a sell
 // order) you are willing to accept. Requires TWS 975+. Smart-routing to US stocks only.
-func Midprice(action string, quantity Decimal, priceCap float64) *Order {
+func Midprice(action string, quantity *Decimal, priceCap *float64) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -135,7 +135,7 @@ func Midprice(action string, quantity Decimal, priceCap float64) *Order {
 //	Buy order price = Ask price - offset amount
 //
 // Products: STK.
-func PeggedToMarket(action string, quantity Decimal, marketOffset float64) *Order {
+func PeggedToMarket(action string, quantity *Decimal, marketOffset *float64) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -155,7 +155,7 @@ func PeggedToMarket(action string, quantity Decimal, marketOffset float64) *Orde
 // is entered. You may also enter a high/low stock price range which cancels the order when reached. The delta times the change in stock
 // price will be rounded to the nearest penny in favor of the order.
 // Products: OPT.
-func PeggedToStock(action string, quantity Decimal, delta float64, stockReferencePrice float64, startingPrice float64) *Order {
+func PeggedToStock(action string, quantity *Decimal, delta *float64, stockReferencePrice *float64, startingPrice *float64) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -179,8 +179,7 @@ func PeggedToStock(action string, quantity Decimal, delta float64, stockReferenc
 // absolute cap, which works like a limit price, and will prevent your order from being executed above or below a specified level.
 // Stocks, Options and Futures - not available on paper trading.
 // Products: CFD, STK, OPT, FUT.
-func RelativePeggedToPrimary(action string, quantity Decimal, priceCap float64,
-	offsetAmount float64) *Order {
+func RelativePeggedToPrimary(action string, quantity *Decimal, priceCap *float64, offsetAmount *float64) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -198,7 +197,7 @@ func RelativePeggedToPrimary(action string, quantity Decimal, priceCap float64,
 // Simultaneously it identifies the next best price and quantity offered/available, and submits the matching quantity of your order for
 // immediate execution.
 // Products: CFD, STK, WAR.
-func SweepToFill(action string, quantity Decimal, price float64) *Order {
+func SweepToFill(action string, quantity *Decimal, price *float64) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -220,7 +219,7 @@ func SweepToFill(action string, quantity Decimal, price float64) *Order {
 // limit order price and the nearest listed increment.
 // Products: OPT.
 // Supported Exchanges: BOX.
-func AuctionLimit(action string, quantity Decimal, price float64, auctionStrategy int64) *Order {
+func AuctionLimit(action string, quantity *Decimal, price *float64, auctionStrategy AuctionStrategy) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -245,7 +244,7 @@ func AuctionLimit(action string, quantity Decimal, price float64, auctionStrateg
 // will be rounded to the nearest penny in favor of the order and will be used as your auction improvement amount.
 // Products: OPT.
 // Supported Exchanges: BOX.
-func AuctionPeggedToStock(action string, quantity Decimal, startingPrice float64, delta float64) *Order {
+func AuctionPeggedToStock(action string, quantity *Decimal, startingPrice *float64, delta *float64) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -270,7 +269,7 @@ func AuctionPeggedToStock(action string, quantity Decimal, startingPrice float64
 // will be rounded to the nearest penny in favor of the order and will be used as your auction improvement amount.
 // Products: OPT
 // Supported Exchanges: BOX.
-func AuctionRelative(action string, quantity Decimal, offset float64) *Order {
+func AuctionRelative(action string, quantity *Decimal, offset *float64) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -285,7 +284,7 @@ func AuctionRelative(action string, quantity Decimal, offset float64) *Order {
 // The Block attribute is used for large volume option orders on ISE that consist of at least 50 contracts. To execute large-volume
 // orders over time without moving the market, use the Accumulate/Distribute algorithm.
 // Products: OPT.
-func Block(action string, quantity Decimal, price float64) *Order {
+func Block(action string, quantity *Decimal, price *float64) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -302,7 +301,7 @@ func Block(action string, quantity Decimal, price float64) *Order {
 // a limit order with the limit price equal to the price at which the filled portion of the order executed.
 // Products: OPT.
 // Supported Exchanges: BOX.
-func BoxTop(action string, quantity Decimal) *Order {
+func BoxTop(action string, quantity *Decimal) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -316,7 +315,7 @@ func BoxTop(action string, quantity Decimal) *Order {
 // A Limit order is an order to buy or sell at a specified price or better. The Limit order ensures that if the order fills,
 // it will not fill at a price less favorable than your limit price, but it does not guarantee a fill.
 // Products: BOND, CFD, CASH, FUT, FOP, OPT, STK, WAR.
-func LimitOrder(action string, quantity Decimal, limitPrice float64) *Order {
+func LimitOrder(action string, quantity *Decimal, limitPrice *float64) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -331,7 +330,7 @@ func LimitOrder(action string, quantity Decimal, limitPrice float64) *Order {
 // Forex orders can be placed in denomination of second currency in pair using cashQty field.
 // Requires TWS or IBG 963+.
 // https://www.interactivebrokers.com/en/index.php?f=23876#963-02
-func LimitOrderWithCashQty(action string, limitPrice float64, cashQty float64) *Order {
+func LimitOrderWithCashQty(action string, limitPrice *float64, cashQty *float64) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -347,7 +346,7 @@ func LimitOrderWithCashQty(action string, limitPrice float64, cashQty float64) *
 // held in the system until the trigger price is touched. An LIT order is similar to a stop limit order, except that an LIT sell order is
 // placed above the current market price, and a stop limit sell order is placed below.
 // Products: BOND, CFD, CASH, FUT, FOP, OPT, STK, WAR.
-func LimitIfTouched(action string, quantity Decimal, limitPrice float64, triggerPrice float64) *Order {
+func LimitIfTouched(action string, quantity *Decimal, limitPrice *float64, triggerPrice *float64) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -362,7 +361,7 @@ func LimitIfTouched(action string, quantity Decimal, limitPrice float64, trigger
 // LimitOnClose .
 // A Limit-on-close (LOC) order will be submitted at the close and will execute if the closing price is at or better than the submitted limit price.
 // Products: CFD, FUT, STK, WAR.
-func LimitOnClose(action string, quantity Decimal, limitPrice float64) *Order {
+func LimitOnClose(action string, quantity *Decimal, limitPrice *float64) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -377,7 +376,7 @@ func LimitOnClose(action string, quantity Decimal, limitPrice float64) *Order {
 // A Limit-on-Open (LOO) order combines a limit order with the OPG time in force to create an order that is submitted at the market's open,
 // and that will only execute at the specified limit price or better. Orders are filled in accordance with specific exchange rules.
 // Products: CFD, STK, OPT, WAR.
-func LimitOnOpen(action string, quantity Decimal, limitPrice float64) *Order {
+func LimitOnOpen(action string, quantity *Decimal, limitPrice *float64) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -400,7 +399,7 @@ func LimitOnOpen(action string, quantity Decimal, limitPrice float64) *Order {
 // The Passive Relative order is similar to the Relative/Pegged-to-Primary order, except that the Passive relative subtracts the offset from
 // the bid and the Relative adds the offset to the bid.
 // Products: STK, WAR.
-func PassiveRelative(action string, quantity Decimal, offset float64) *Order {
+func PassiveRelative(action string, quantity *Decimal, offset *float64) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -417,7 +416,7 @@ func PassiveRelative(action string, quantity Decimal, offset float64) *Order {
 // the NBBO midpoand:the:int order price adjusts automatically to continue to peg the midpoif:the:int market moves. The price only adjusts
 // to be more aggressive. If the market moves in the opposite direction, the order will execute.
 // Products: STK.
-func PeggedToMidpoint(action string, quantity Decimal, offset float64, limitPrice float64) *Order {
+func PeggedToMidpoint(action string, quantity *Decimal, offset *float64, limitPrice *float64) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -434,7 +433,7 @@ func PeggedToMidpoint(action string, quantity Decimal, offset float64, limitPric
 // A BUY order is bracketed by a high-side sell limit order and a low-side sell stop order. A SELL order is bracketed by a high-side buy
 // stop order and a low side buy limit order.
 // Products: CFD, BAG, FOP, CASH, FUT, OPT, STK, WAR.
-func BracketOrder(parentOrderId int64, action string, quantity Decimal, limitPrice float64, takeProfitLimitPrice float64, stopLossPrice float64) (parent, takeProfit, stopLoss *Order) {
+func BracketOrder(parentOrderId int32, action string, quantity *Decimal, limitPrice *float64, takeProfitLimitPrice *float64, stopLossPrice *float64) (parent, takeProfit, stopLoss *Order) {
 
 	// This will be our main or "parent" order
 	parent = NewOrder()
@@ -483,7 +482,7 @@ func BracketOrder(parentOrderId int64, action string, quantity Decimal, limitPri
 // A Market-to-Limit (MTL) order is submitted as a market order to execute at the current best market price. If the order is only
 // partially filled, the remainder of the order is canceled and re-submitted as a limit order with the limit price equal to the price
 // at which the filled portion of the order executed.
-func MarketToLimit(action string, quantity Decimal) *Order {
+func MarketToLimit(action string, quantity *Decimal) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -498,7 +497,7 @@ func MarketToLimit(action string, quantity Decimal) *Order {
 // resubmitted as a limit order if the entire order does not immediately execute at the market price. The limit price is set by Globex to be
 // close to the current market price, slightly higher for a sell order and lower for a buy order.
 // Products: FUT, FOP.
-func MarketWithProtection(action string, quantity Decimal) *Order {
+func MarketWithProtection(action string, quantity *Decimal) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -515,7 +514,7 @@ func MarketWithProtection(action string, quantity Decimal) *Order {
 // position. A Buy Stop order is always placed above the current market price. It is typically used to limit a loss or help protect a
 // profit on a short sale.
 // Products: CFD, BAG, CASH, FUT, FOP, OPT, STK, WAR.
-func Stop(action string, quantity Decimal, stopPrice float64) *Order {
+func Stop(action string, quantity *Decimal, stopPrice *float64) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -531,7 +530,7 @@ func Stop(action string, quantity Decimal, stopPrice float64) *Order {
 // penetrated. The order has two basic components: the stop price and the limit price. When a trade has occurred at or through the stop
 // price, the order becomes executable and enters the market as a limit order, which is an order to buy or sell at a specified price or better.
 // Products: CFD, CASH, FUT, FOP, OPT, STK, WAR.
-func StopLimit(action string, quantity Decimal, limitPrice float64, stopPrice float64) *Order {
+func StopLimit(action string, quantity *Decimal, limitPrice *float64, stopPrice *float64) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -550,7 +549,7 @@ func StopLimit(action string, quantity Decimal, limitPrice float64, stopPrice fl
 // point range. Any portion of the order that does not fill within this protected range is submitted as a limit order at the exchange-defined
 // trigger price +/- the protection points.
 // Products: FUT.
-func StopWithProtection(action string, quantity Decimal, stopPrice float64) *Order {
+func StopWithProtection(action string, quantity *Decimal, stopPrice *float64) *Order {
 
 	order := NewOrder()
 	order.TotalQuantity = quantity
@@ -568,7 +567,7 @@ func StopWithProtection(action string, quantity Decimal, stopPrice float64) *Ord
 // maximum possible loss, without setting a limit on the maximum possible gain. "Buy" trailing stop orders are the mirror image of sell
 // trailing stop orders, and are most appropriate for use in falling markets.
 // Products: CFD, CASH, FOP, FUT, OPT, STK, WAR.
-func TrailingStop(action string, quantity Decimal, trailingPercent float64, trailStopPrice float64) *Order {
+func TrailingStop(action string, quantity *Decimal, trailingPercent *float64, trailStopPrice *float64) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -589,7 +588,7 @@ func TrailingStop(action string, quantity Decimal, trailingPercent float64, trai
 // is submitted at the last calculated limit price. A "Buy" trailing stop limit order is the mirror image of a sell trailing stop limit,
 // and is generally used in falling markets.
 // Products: BOND, CFD, CASH, FUT, FOP, OPT, STK, WAR.
-func TrailingStopLimit(action string, quantity Decimal, lmtPriceOffset float64, trailingAmount float64, trailStopPrice float64) *Order {
+func TrailingStopLimit(action string, quantity *Decimal, lmtPriceOffset *float64, trailingAmount *float64, trailStopPrice *float64) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -608,7 +607,7 @@ func TrailingStopLimit(action string, quantity Decimal, lmtPriceOffset float64, 
 // if it is routed directly to an exchange. For combination orders that are SmartRouted, each leg may be executed separately to ensure
 // best execution.
 // Products: OPT, STK, FUT.
-func ComboLimitOrder(action string, quantity Decimal, limitPrice float64, nonGuaranteed bool) *Order {
+func ComboLimitOrder(action string, quantity *Decimal, limitPrice *float64, nonGuaranteed bool) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -629,7 +628,7 @@ func ComboLimitOrder(action string, quantity Decimal, limitPrice float64, nonGua
 // if it is routed directly to an exchange. For combination orders that are SmartRouted, each leg may be executed separately to ensure
 // best execution.
 // Products: OPT, STK, FUT.
-func ComboMarketOrder(action string, quantity Decimal, nonGuaranteed bool) *Order {
+func ComboMarketOrder(action string, quantity *Decimal, nonGuaranteed bool) *Order {
 
 	order := NewOrder()
 	order.Action = action
@@ -654,11 +653,11 @@ func LimitOrderForComboWithLegPrices(action string, quantity Decimal, legPrices 
 	order := NewOrder()
 	order.Action = action
 	order.OrderType = "LMT"
-	order.TotalQuantity = quantity
+	order.TotalQuantity = &quantity
 	order.OrderComboLegs = []OrderComboLeg{}
 	for _, price := range legPrices {
 		comboLeg := NewOrderComboLeg()
-		comboLeg.Price = price
+		comboLeg.Price = &price
 		order.OrderComboLegs = append(order.OrderComboLegs, comboLeg)
 	}
 	if nonGuaranteed {
@@ -679,9 +678,9 @@ func RelativeLimitCombo(action string, quantity Decimal, limitPrice float64, non
 
 	order := NewOrder()
 	order.Action = action
-	order.TotalQuantity = quantity
+	order.TotalQuantity = &quantity
 	order.OrderType = "REL + LMT"
-	order.LmtPrice = limitPrice
+	order.LmtPrice = &limitPrice
 	if nonGuaranteed {
 		order.SmartComboRoutingParams = []TagValue{}
 		order.SmartComboRoutingParams = append(order.SmartComboRoutingParams, TagValue{Tag: "NonGuaranteed", Value: "1"})
@@ -690,23 +689,21 @@ func RelativeLimitCombo(action string, quantity Decimal, limitPrice float64, non
 	return order
 }
 
-// RelativeMarketCombo .
+// NewRelativeMarketComboOrder
 // Create combination orders that include options, stock and futures legs (stock legs can be included if the order is routed
 // through SmartRouting). Although a combination/spread order is constructed of separate legs, it is executed as a single transaction
 // if it is routed directly to an exchange. For combination orders that are SmartRouted, each leg may be executed separately to ensure
 // best execution.
 // Products: OPT, STK, FUT.
-func RelativeMarketCombo(action string, quantity Decimal, nonGuaranteed bool) *Order {
-
+func NewRelativeMarketComboOrder(action string, quantity Decimal, nonGuaranteed bool) *Order {
 	order := NewOrder()
 	order.Action = action
-	order.TotalQuantity = quantity
+	order.TotalQuantity = &quantity
 	order.OrderType = "REL + MKT"
 	if nonGuaranteed {
 		order.SmartComboRoutingParams = []TagValue{}
 		order.SmartComboRoutingParams = append(order.SmartComboRoutingParams, TagValue{Tag: "NonGuaranteed", Value: "1"})
 	}
-
 	return order
 }
 
@@ -720,12 +717,12 @@ func RelativeMarketCombo(action string, quantity Decimal, nonGuaranteed bool) *O
 // Grouping the two orders using an OCA order type offers the investor two chance to enter a similar position, while only running the risk
 // of taking on a single position.
 // Products: BOND, CASH, FUT, FOP, STK, OPT, WAR.
-func OneCancelsAll(ocaGroup string, ocaOrder *Order, ocaType int64) {
+func OneCancelsAll(ocaGroup string, ocaOrder *Order, ocaType Oca) {
 	ocaOrder.OCAGroup = ocaGroup
 	ocaOrder.OCAType = ocaType
 }
 
-// Volatility .
+// NewVolatilityOrder
 // Specific to US options, investors are able to create and enter Volatility-type orders for options and combinations rather than price orders.
 // Option traders may wish to trade and position for movements in the price of the option determined by its implied volatility. Because
 // implied volatility is a key determinant of the premium on an option, traders position in specific contract months in an effort to take
@@ -735,39 +732,40 @@ func OneCancelsAll(ocaGroup string, ocaOrder *Order, ocaType int64) {
 // is the same as for regular orders priced in premium terms except that the client can limit the volatility level they are willing to pay or
 // receive.
 // Products: FOP, OPT.
-func Volatility(action string, quantity Decimal, volatilityPercent float64, volatilityType int64) *Order {
+func NewVolatilityOrder(action string, quantity Decimal, volatilityPercent float64, volatilityType Volatility) *Order {
 
 	order := NewOrder()
 	order.Action = action
 	order.OrderType = "VOL"
-	order.TotalQuantity = quantity
-	order.Volatility = volatilityPercent  // Expressed in percentage (40%)
-	order.VolatilityType = volatilityType // 1=daily, 2=annual
+	order.TotalQuantity = &quantity
+	order.Volatility = &volatilityPercent // Expressed in percentage (40%)
+	order.VolatilityType = volatilityType
 
 	return order
 }
 
-// MarketFHedge .
-func MarketFHedge(parentOrderId int64, action string) *Order {
-
+// NewMarketFHedgeOrder ...
+func NewMarketFHedgeOrder(parentOrderId int32, action string) *Order {
 	// FX Hedge orders can only have a quantity of 0
-	order := MarketOrder(action, DECIMAL_ZERO)
+	order := MarketOrder(action, &DecimalZero)
 	order.ParentID = parentOrderId
 	order.HedgeType = "F"
 	return order
 }
 
-// PeggedToBenchmark .
-func PeggedToBenchmark(action string, quantity Decimal, startingPrice float64, peggedChangeAmountDecrease bool, peggedChangeAmount float64, referenceChangeAmount float64,
-	referenceConId int64, referenceExchange string, stockReferencePrice float64, referenceContractLowerRange float64, referenceContractUpperRange float64) *Order {
-
+// NewPeggedToBenchmarkOrder
+func NewPeggedToBenchmarkOrder(
+	action string, quantity Decimal, startingPrice float64, peggedChangeAmountDecrease bool,
+	peggedChangeAmount float64, referenceChangeAmount float64, referenceConId int32, referenceExchange string,
+	stockReferencePrice float64, referenceContractLowerRange float64, referenceContractUpperRange float64,
+) *Order {
 	order := NewOrder()
 	order.OrderType = "PEG BENCH"
 	// BUY or SELL
 	order.Action = action
-	order.TotalQuantity = quantity
+	order.TotalQuantity = &quantity
 	// Beginning with price...
-	order.StartingPrice = startingPrice
+	order.StartingPrice = &startingPrice
 	// increase/decrease price..
 	order.IsPeggedChangeAmountDecrease = peggedChangeAmountDecrease
 	// by... (and likewise for price moving in opposite direction)
@@ -779,94 +777,102 @@ func PeggedToBenchmark(action string, quantity Decimal, startingPrice float64, p
 	// being traded at...
 	order.ReferenceExchangeID = referenceExchange
 	// starting reference price is...
-	order.StockRefPrice = stockReferencePrice
+	order.StockRefPrice = &stockReferencePrice
 	// Keep order active as long as reference contract trades between...
-	order.StockRangeLower = referenceContractLowerRange
+	order.StockRangeLower = &referenceContractLowerRange
 	// and...
-	order.StockRangeUpper = referenceContractUpperRange
+	order.StockRangeUpper = &referenceContractUpperRange
 
 	return order
 }
 
-// AttachAdjustableToStop .
-func AttachAdjustableToStop(parent *Order, attachedOrderStopPrice float64, triggerPrice float64, adjustStopPrice float64) *Order {
-
+// NewAttachAdjustableToStopOrder
+func NewAttachAdjustableToStopOrder(
+	parent *Order, attachedOrderStopPrice float64, triggerPrice float64, adjustStopPrice float64,
+) *Order {
 	// Attached order is a conventional STP order in opposite direction
 	action := "SELL"
 	if parent.Action == "SELL" {
 		action = "BUY"
 	}
-	order := Stop(action, parent.TotalQuantity, attachedOrderStopPrice)
+	order := Stop(action, parent.TotalQuantity, &attachedOrderStopPrice)
 	order.ParentID = parent.OrderID
 	// When trigger price is penetrated
-	order.TriggerPrice = triggerPrice
+	order.TriggerPrice = &triggerPrice
 	// The parent order will be turned into a STP order
 	order.AdjustedOrderType = "STP"
 	// With the given STP price
-	order.AdjustedStopPrice = adjustStopPrice
+	order.AdjustedStopPrice = &adjustStopPrice
 
 	return order
 }
 
-// AttachAdjustableToStopLimit .
-func AttachAdjustableToStopLimit(parent *Order, attachedOrderStopPrice float64, triggerPrice float64, adjustedStopPrice float64, adjustedStopLimitPrice float64) *Order {
-
+// NewAttachAdjustableToStopLimitOrder
+func NewAttachAdjustableToStopLimitOrder(
+	parent *Order, attachedOrderStopPrice float64, triggerPrice float64, adjustedStopPrice float64,
+	adjustedStopLimitPrice float64,
+) *Order {
 	// Attached order is a conventional STP order
 	action := "SELL"
 	if parent.Action == "SELL" {
 		action = "BUY"
 	}
-	order := Stop(action, parent.TotalQuantity, attachedOrderStopPrice)
+	order := Stop(action, parent.TotalQuantity, &attachedOrderStopPrice)
 	order.ParentID = parent.OrderID
 	// When trigger price is penetrated
-	order.TriggerPrice = triggerPrice
+	order.TriggerPrice = &triggerPrice
 	// The parent order will be turned into a STP LMT order
 	order.AdjustedOrderType = "STP LMT"
 	// With the given stop price
-	order.AdjustedStopPrice = adjustedStopPrice
+	order.AdjustedStopPrice = &adjustedStopPrice
 	// And the given limit price
-	order.AdjustedStopLimitPrice = adjustedStopLimitPrice
+	order.AdjustedStopLimitPrice = &adjustedStopLimitPrice
 
 	return order
 }
 
-// AttachAdjustableToTrail .
-func AttachAdjustableToTrail(parent *Order, attachedOrderStopPrice float64, triggerPrice float64, adjustedStopPrice float64, adjustedTrailAmount float64, trailUnit int64) *Order {
+// NewAttachAdjustableToTrailOrder
+func NewAttachAdjustableToTrailOrder(
+	parent *Order, attachedOrderStopPrice float64, triggerPrice float64, adjustedStopPrice float64,
+	adjustedTrailAmount float64, trailUnit int32,
+) *Order {
 
 	// Attached order is a conventional STP order
 	action := "SELL"
 	if parent.Action == "SELL" {
 		action = "BUY"
 	}
-	order := Stop(action, parent.TotalQuantity, attachedOrderStopPrice)
+	order := Stop(action, parent.TotalQuantity, &attachedOrderStopPrice)
 	order.ParentID = parent.OrderID
 	// When trigger price is penetrated
-	order.TriggerPrice = triggerPrice
+	order.TriggerPrice = &triggerPrice
 	// The parent order will be turned into a TRAIL order
 	order.AdjustedOrderType = "TRAIL"
 	// With a stop price of...
-	order.AdjustedStopPrice = adjustedStopPrice
+	order.AdjustedStopPrice = &adjustedStopPrice
 	// traling by and amount (0) or a percent (100)...
 	order.AdjustableTrailingUnit = trailUnit
 	// of...
-	order.AdjustedTrailingAmount = adjustedTrailAmount
+	order.AdjustedTrailingAmount = &adjustedTrailAmount
 
 	return order
 }
 
-// WhatIfLimitOrder .
+// WhatIfLimitOrder ...
 func WhatIfLimitOrder(action string, quantity Decimal, limitPrice float64) *Order {
 
-	order := LimitOrder(action, quantity, limitPrice)
+	order := LimitOrder(action, &quantity, &limitPrice)
 	order.WhatIf = true
 
 	return order
 }
 
-// NewPriceCondition .
-func NewPriceCondition(triggerMethod int64, conId int64, exchange string, price float64, isMore bool, isConjunction bool) *PriceCondition {
+// NewPriceCondition ...
+func NewPriceCondition(
+	triggerMethod TriggerMethod, conId int32, exchange string, price float64, isMore bool, isConjunction bool,
+) *OrderPriceCondition {
 	cond, _ := NewOrderCondition(OrderConditionTypePrice)
-	priceCondition := cond.(*PriceCondition)
+	priceCondition := cond.(*OrderPriceCondition)
 	// When this contract...
 	priceCondition.ConID = conId
 	// traded on this exchange
@@ -883,10 +889,12 @@ func NewPriceCondition(triggerMethod int64, conId int64, exchange string, price 
 
 }
 
-// NewExecutionCondition .
-func NewExecutionCondition(symbol string, secType SecurityType, exchange string, isConjunction bool) *ExecutionCondition {
+// NewExecutionCondition ...
+func NewExecutionCondition(
+	symbol string, secType SecurityType, exchange string, isConjunction bool,
+) *OrderExecutionCondition {
 	cond, _ := NewOrderCondition(OrderConditionTypeExecution)
-	execCondition := cond.(*ExecutionCondition)
+	execCondition := cond.(*OrderExecutionCondition)
 	// When an execution on symbol
 	execCondition.Symbol = symbol
 	// at exchange
@@ -899,10 +907,10 @@ func NewExecutionCondition(symbol string, secType SecurityType, exchange string,
 	return execCondition
 }
 
-// NewMarginCondition .
-func NewMarginCondition(percent int64, isMore bool, isConjunction bool) *MarginCondition {
+// NewMarginCondition ...
+func NewMarginCondition(percent int32, isMore bool, isConjunction bool) *OrderMarginCondition {
 	cond, _ := NewOrderCondition(OrderConditionTypeMargin)
-	marginCondition := cond.(*MarginCondition)
+	marginCondition := cond.(*OrderMarginCondition)
 	// If margin is above/below
 	marginCondition.IsMore = isMore
 	// given percent
@@ -913,10 +921,12 @@ func NewMarginCondition(percent int64, isMore bool, isConjunction bool) *MarginC
 	return marginCondition
 }
 
-// NewPercentageChangeCondition .
-func NewPercentageChangeCondition(pctChange float64, conId int64, exchange string, isMore bool, isConjunction bool) *PercentChangeCondition {
+// NewPercentageChangeCondition ...
+func NewPercentageChangeCondition(
+	pctChange float64, conId int32, exchange string, isMore bool, isConjunction bool,
+) *OrderPercentChangeCondition {
 	cond, _ := NewOrderCondition(OrderConditionTypePercentChange)
-	pctChangeCondition := cond.(*PercentChangeCondition)
+	pctChangeCondition := cond.(*OrderPercentChangeCondition)
 	// If there is a price percent change measured against last close price above or below...
 	pctChangeCondition.IsMore = isMore
 	// this amount...
@@ -931,10 +941,10 @@ func NewPercentageChangeCondition(pctChange float64, conId int64, exchange strin
 	return pctChangeCondition
 }
 
-// NewTimeCondition .
-func NewTimeCondition(time string, isMore bool, isConjunction bool) *TimeCondition {
+// NewTimeCondition ...
+func NewTimeCondition(time string, isMore bool, isConjunction bool) *OrderTimeCondition {
 	cond, _ := NewOrderCondition(OrderConditionTypeTime)
-	timeCondition := cond.(*TimeCondition)
+	timeCondition := cond.(*OrderTimeCondition)
 	// Before or after...
 	timeCondition.IsMore = isMore
 	// this time..
@@ -945,10 +955,10 @@ func NewTimeCondition(time string, isMore bool, isConjunction bool) *TimeConditi
 	return timeCondition
 }
 
-// VolumeConditionOrder .
-func NewVolumeCondition(conId int64, exchange string, isMore bool, volume int64, isConjunction bool) *VolumeCondition {
+// NewVolumeCondition ...
+func NewVolumeCondition(conId int32, exchange string, isMore bool, volume int32, isConjunction bool) *OrderVolumeCondition {
 	cond, _ := NewOrderCondition(OrderConditionTypeVolume)
-	volCond := cond.(*VolumeCondition)
+	volCond := cond.(*OrderVolumeCondition)
 	// Whenever contract...
 	volCond.ConID = conId
 	// When traded at
@@ -968,8 +978,8 @@ func LimitIBKRATS(action string, quantity Decimal, limitPrice float64) *Order {
 	order := NewOrder()
 	order.Action = action
 	order.OrderType = "LMT"
-	order.LmtPrice = limitPrice
-	order.TotalQuantity = quantity
+	order.LmtPrice = &limitPrice
+	order.TotalQuantity = &quantity
 	order.NotHeld = true
 
 	return order
@@ -977,119 +987,117 @@ func LimitIBKRATS(action string, quantity Decimal, limitPrice float64) *Order {
 
 // LimitOrderWithManualOrderTime .
 func LimitOrderWithManualOrderTime(action string, quantity Decimal, limitPrice float64, manualOrderTime string) *Order {
-	order := LimitOrder(action, quantity, limitPrice)
+	order := LimitOrder(action, &quantity, &limitPrice)
 	order.ManualOrderTime = manualOrderTime
 
 	return order
 }
 
-// PegBestUpToMidOrder .
-func PegBestUpToMidOrder(action string, quantity Decimal, limitPrice float64, minTradeQty int64, minCompeteSize int64, midOffsetAtWhole float64, midOffsetAtHalf float64) *Order {
+// NewPegBestUpToMidOrder ...
+func NewPegBestUpToMidOrder(
+	action string, quantity Decimal, limitPrice float64, minTradeQty int32, minCompeteSize int32,
+	midOffsetAtWhole float64, midOffsetAtHalf float64,
+) *Order {
 	order := NewOrder()
 	order.Action = action
 	order.OrderType = "PEG BEST"
-	order.LmtPrice = limitPrice
-	order.TotalQuantity = quantity
+	order.LmtPrice = &limitPrice
+	order.TotalQuantity = &quantity
 	order.NotHeld = true
-	order.MinTradeQty = minTradeQty
-	order.MinCompeteSize = minCompeteSize
-	order.CompeteAgainstBestOffset = COMPETE_AGAINST_BEST_OFFSET_UP_TO_MID
-	order.MidOffsetAtWhole = midOffsetAtWhole
-	order.MidOffsetAtHalf = midOffsetAtHalf
+	order.MinTradeQty = &minTradeQty
+	order.MinCompeteSize = &minCompeteSize
+	order.CompeteAgainstBestOffset = &CompeteAgainstBestOffsetUpToMid
+	order.MidOffsetAtWhole = &midOffsetAtWhole
+	order.MidOffsetAtHalf = &midOffsetAtHalf
 
 	return order
 }
 
-// PegBestOrder .
-func PegBestOrder(action string, quantity Decimal, limitPrice float64, minTradeQty int64, minCompeteSize int64, competeAgainstBestOffset float64) *Order {
+// NewPegBestOrder ...
+func NewPegBestOrder(
+	action string, quantity Decimal, limitPrice float64, minTradeQty int32, minCompeteSize int32,
+	competeAgainstBestOffset float64,
+) *Order {
 	order := NewOrder()
 	order.Action = action
 	order.OrderType = "PEG BEST"
-	order.LmtPrice = limitPrice
-	order.TotalQuantity = quantity
+	order.LmtPrice = &limitPrice
+	order.TotalQuantity = &quantity
 	order.NotHeld = true
-	order.MinTradeQty = minTradeQty
-	order.MinCompeteSize = minCompeteSize
-	order.CompeteAgainstBestOffset = competeAgainstBestOffset
+	order.MinTradeQty = &minTradeQty
+	order.MinCompeteSize = &minCompeteSize
+	order.CompeteAgainstBestOffset = &competeAgainstBestOffset
 
 	return order
 }
 
-// PegMidOrder .
-func PegMidOrder(action string, quantity Decimal, limitPrice float64, minTradeQty int64, midOffsetAtWhole float64, midOffsetAtHalf float64) *Order {
-
+// NewPegMidOrder ...
+func NewPegMidOrder(
+	action string, quantity Decimal, limitPrice float64, minTradeQty int32, midOffsetAtWhole float64,
+	midOffsetAtHalf float64,
+) *Order {
 	order := NewOrder()
 	order.Action = action
 	order.OrderType = "PEG MID"
-	order.LmtPrice = limitPrice
-	order.TotalQuantity = quantity
+	order.LmtPrice = &limitPrice
+	order.TotalQuantity = &quantity
 	order.NotHeld = true
-	order.MinTradeQty = minTradeQty
-	order.MidOffsetAtWhole = midOffsetAtWhole
-	order.MidOffsetAtHalf = midOffsetAtHalf
+	order.MinTradeQty = &minTradeQty
+	order.MidOffsetAtWhole = &midOffsetAtWhole
+	order.MidOffsetAtHalf = &midOffsetAtHalf
 
 	return order
 }
 
-// LimitOrderWithCustomerAccount .
-func LimitOrderWithCustomerAccount(action string, quantity Decimal, limitPrice float64, customerAccount string) *Order {
-
-	order := LimitOrder(action, quantity, limitPrice)
+// NewLimitOrderWithCustomerAccountOrder ...
+func NewLimitOrderWithCustomerAccountOrder(
+	action string, quantity Decimal, limitPrice float64, customerAccount string,
+) *Order {
+	order := LimitOrder(action, &quantity, &limitPrice)
 	order.CustomerAccount = customerAccount
-
 	return order
 }
 
-func LimitOrderWithIncludeOvernight(action string, quantity Decimal, limitPrice float64) *Order {
-	order := LimitOrder(action, quantity, limitPrice)
+func NewLimitOrderWithIncludeOvernight(action string, quantity Decimal, limitPrice float64) *Order {
+	order := LimitOrder(action, &quantity, &limitPrice)
 	order.IncludeOvernight = true
-
 	return order
-
 }
 
-// CancelOrderEmpty .
-func CancelOrderEmpty() OrderCancel {
-
+// NewEmptyCancelOrder ...
+func NewEmptyCancelOrder() OrderCancel {
 	orderCancel := NewOrderCancel()
-
 	return orderCancel
 }
 
-// CancelOrderWithManualTime .
-func CancelOrderWithManualTime(manualOrderCancelTime string) OrderCancel {
-
+// NewCancelOrderWithManualTime ...
+func NewCancelOrderWithManualTime(manualOrderCancelTime string) OrderCancel {
 	orderCancel := NewOrderCancel()
 	orderCancel.ManualOrderCancelTime = manualOrderCancelTime
-
 	return orderCancel
 }
 
-// LimitOrderWithCmeTaggingFields .
-func LimitOrderWithCmeTaggingFields(action string, quantity Decimal, limitPrice float64, extOperator string, manualOrderIndicator int64) *Order {
-
-	order := LimitOrder(action, quantity, limitPrice)
+// NewLimitOrderWithCmeTaggingFieldsOrder ...
+func NewLimitOrderWithCmeTaggingFieldsOrder(
+	action string, quantity Decimal, limitPrice float64, extOperator string, manualOrderIndicator int32,
+) *Order {
+	order := LimitOrder(action, &quantity, &limitPrice)
 	order.ExtOperator = extOperator
-	order.ManualOrderIndicator = manualOrderIndicator
-
+	order.ManualOrderIndicator = &manualOrderIndicator
 	return order
 }
 
-// OrderCancelWithCmeTaggingFields .
-func OrderCancelWithCmeTaggingFields(extOperator string, manualOrderIndicator int64) OrderCancel {
-
+// NewOrderCancelWithCmeTaggingFields ...
+func NewOrderCancelWithCmeTaggingFields(extOperator string, manualOrderIndicator int32) OrderCancel {
 	orderCancel := NewOrderCancel()
 	orderCancel.ExtOperator = extOperator
-	orderCancel.ManualOrderIndicator = manualOrderIndicator
-
+	orderCancel.ManualOrderIndicator = &manualOrderIndicator
 	return orderCancel
 }
 
-// OrderCancelWithCmeTaggingFields .
-func LimitOnCloseOrderWithImbalanceOnly(action string, quantity Decimal, limitPrice float64) *Order {
-
-	order := LimitOnClose(action, quantity, limitPrice)
+// NewLimitOnCloseOrderWithImbalanceOnlyOrder ...
+func NewLimitOnCloseOrderWithImbalanceOnlyOrder(action string, quantity Decimal, limitPrice float64) *Order {
+	order := LimitOnClose(action, &quantity, &limitPrice)
 	order.ImbalanceOnly = true
-
 	return order
 }

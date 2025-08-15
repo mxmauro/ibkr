@@ -25,7 +25,7 @@ type HistoricalDataRequestOptions struct {
 }
 
 type HistoricalDataResponse struct {
-	Bars []Bar
+	Bars []HistoricalDataBar
 }
 
 type HistoricalTicksRequestOptions struct {
@@ -49,7 +49,7 @@ type ContractDetailsRequestOptions struct {
 }
 
 type ContractDetailsResponse struct {
-	ContractDetails []ContractDetails
+	ContractDetails []*ContractDetails
 }
 
 type MatchingSymbolsRequestOptions struct {
@@ -57,7 +57,7 @@ type MatchingSymbolsRequestOptions struct {
 }
 
 type MatchingSymbolsResponse struct {
-	ContractDescriptions []ContractDescription
+	ContractDescriptions []*ContractDescription
 }
 
 type MarketDataTypeRequestOptions struct {
@@ -85,9 +85,16 @@ type MarketDepthDataRequestOptions struct {
 
 type MarketDepthDataResponse struct {
 	Channel chan MarketDepthData
-	Book    MarketDepthBook
+	Book    *MarketDepthBook
 	Cancel  CancelFunc
 	Err     ErrFunc
+}
+
+type HeadTimestampRequestOptions struct {
+}
+
+type HeadTimestampResponse struct {
+	Timestamp time.Time
 }
 
 type CancelFunc func()

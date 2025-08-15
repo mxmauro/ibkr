@@ -13,7 +13,7 @@ type PriceIncrement struct {
 
 // -----------------------------------------------------------------------------
 
-func newPriceIncrement() PriceIncrement {
+func NewPriceIncrement() PriceIncrement {
 	return PriceIncrement{}
 }
 

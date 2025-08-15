@@ -1,25 +1,25 @@
 package models
 
 import (
-	"github.com/mxmauro/ibkr/utils"
+	"github.com/mxmauro/ibkr/utils/encoders/message"
 )
 
 // -----------------------------------------------------------------------------
 
-type ContractCondition struct {
-	*OperatorCondition
-	ConID    int64
+type OrderContractCondition struct {
+	OrderOperatorCondition
+	ConID    int32
 	Exchange string
 }
 
 // -----------------------------------------------------------------------------
 
-func (cc *ContractCondition) decode(msgDec *utils.MessageDecoder) {
-	cc.OperatorCondition.decode(msgDec)
-	cc.ConID = msgDec.Int64(false)
-	cc.Exchange = msgDec.String(false)
+func (cc *OrderContractCondition) decode(msgDec *message.Decoder) {
+	cc.OrderOperatorCondition.decode(msgDec)
+	cc.ConID = msgDec.Int32()
+	cc.Exchange = msgDec.String()
 }
 
-func (cc *ContractCondition) makeFields() []any {
-	return append(cc.OperatorCondition.makeFields(), cc.ConID, cc.Exchange)
+func (cc *OrderContractCondition) makeFields() []any {
+	return append(cc.OrderOperatorCondition.makeFields(), cc.ConID, cc.Exchange)
 }

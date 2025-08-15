@@ -14,10 +14,15 @@ type SmartComponent struct {
 
 // -----------------------------------------------------------------------------
 
-func newSmartComponent() SmartComponent {
+func NewSmartComponent() SmartComponent {
 	return SmartComponent{}
 }
 
-func (s SmartComponent) String() string {
-	return fmt.Sprintf("BitNumber: %d, Exchange: %s, ExchangeLetter: %s", s.BitNumber, s.Exchange, s.ExchangeLetter)
+func (sc *SmartComponent) String() string {
+	return fmt.Sprintf(
+		"BitNumber: %d, Exchange: %s, ExchangeLetter: %s",
+		sc.BitNumber,
+		sc.Exchange,
+		sc.ExchangeLetter,
+	)
 }

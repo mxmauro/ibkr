@@ -1,23 +1,23 @@
 package models
 
 import (
-	"github.com/mxmauro/ibkr/utils"
+	"github.com/mxmauro/ibkr/utils/encoders/message"
 )
 
 // -----------------------------------------------------------------------------
 
-type MarginCondition struct {
-	*OperatorCondition
-	Percent int64
+type OrderMarginCondition struct {
+	OrderOperatorCondition
+	Percent int32
 }
 
 // -----------------------------------------------------------------------------
 
-func (mc *MarginCondition) decode(msgDec *utils.MessageDecoder) {
-	mc.OperatorCondition.decode(msgDec)
-	mc.Percent = msgDec.Int64(false)
+func (mc *OrderMarginCondition) decode(msgDec *message.Decoder) {
+	mc.OrderOperatorCondition.decode(msgDec)
+	mc.Percent = msgDec.Int32()
 }
 
-func (mc *MarginCondition) makeFields() []any {
-	return append(mc.OperatorCondition.makeFields(), mc.Percent)
+func (mc *OrderMarginCondition) makeFields() []any {
+	return append(mc.OrderOperatorCondition.makeFields(), mc.Percent)
 }

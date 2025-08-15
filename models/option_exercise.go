@@ -2,7 +2,7 @@ package models
 
 // -----------------------------------------------------------------------------
 
-type OptionExercise int
+type OptionExercise int32
 
 const (
 	OptionExerciseNone                 OptionExercise = -1
@@ -38,7 +38,6 @@ func (e OptionExercise) String() string {
 		return "Netting"
 	case OptionExerciseAutoexerciseTrading:
 		return "AutoexerciseTrading"
-	default:
-		return "Unknown"
 	}
+	return ""
 }

@@ -1,23 +1,23 @@
 package models
 
 import (
-	"github.com/mxmauro/ibkr/utils"
+	"github.com/mxmauro/ibkr/utils/encoders/message"
 )
 
 // -----------------------------------------------------------------------------
 
-type VolumeCondition struct {
-	*ContractCondition
-	Volume int64
+type OrderVolumeCondition struct {
+	OrderContractCondition
+	Volume int32
 }
 
 // -----------------------------------------------------------------------------
 
-func (vc *VolumeCondition) decode(msgDec *utils.MessageDecoder) {
-	vc.ContractCondition.decode(msgDec)
-	vc.Volume = msgDec.Int64(false)
+func (vc *OrderVolumeCondition) decode(msgDec *message.Decoder) {
+	vc.OrderContractCondition.decode(msgDec)
+	vc.Volume = msgDec.Int32()
 }
 
-func (vc *VolumeCondition) makeFields() []any {
-	return append(vc.ContractCondition.makeFields(), vc.Volume)
+func (vc *OrderVolumeCondition) makeFields() []any {
+	return append(vc.OrderContractCondition.makeFields(), vc.Volume)
 }

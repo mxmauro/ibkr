@@ -3,13 +3,13 @@ package models
 import (
 	"fmt"
 
-	"github.com/mxmauro/ibkr/utils"
+	"github.com/mxmauro/ibkr/utils/encoders/message"
 )
 
 // -----------------------------------------------------------------------------
 
-type ExecutionCondition struct {
-	*orderCondition
+type OrderExecutionCondition struct {
+	orderConditionBase
 	SecType  SecurityType
 	Exchange string
 	Symbol   string
@@ -17,17 +17,17 @@ type ExecutionCondition struct {
 
 // -----------------------------------------------------------------------------
 
-func (ec *ExecutionCondition) decode(msgDec *utils.MessageDecoder) {
-	ec.orderCondition.decode(msgDec)
-	ec.SecType = NewSecurityTypeFromString(msgDec.String(false))
-	ec.Exchange = msgDec.String(false)
-	ec.Symbol = msgDec.String(false)
+func (ec *OrderExecutionCondition) decode(msgDec *message.Decoder) {
+	ec.orderConditionBase.decode(msgDec)
+	ec.SecType = NewSecurityTypeFromString(msgDec.String())
+	ec.Exchange = msgDec.String()
+	ec.Symbol = msgDec.String()
 }
 
-func (ec *ExecutionCondition) makeFields() []any {
-	return append(ec.orderCondition.makeFields(), ec.SecType, ec.Exchange, ec.Symbol)
+func (ec *OrderExecutionCondition) makeFields() []any {
+	return append(ec.orderConditionBase.makeFields(), ec.SecType, ec.Exchange, ec.Symbol)
 }
 
-func (ec *ExecutionCondition) String() string {
+func (ec *OrderExecutionCondition) String() string {
 	return fmt.Sprintf("trade occurs for %v symbol on %v exchange for %v security type", ec.Symbol, ec.Exchange, ec.SecType)
 }

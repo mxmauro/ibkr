@@ -1,25 +1,22 @@
 package models
 
 import (
-	"github.com/mxmauro/ibkr/common"
-	"github.com/mxmauro/ibkr/utils"
+	"github.com/mxmauro/ibkr/utils/formatter"
 )
 
 // -----------------------------------------------------------------------------
 
 type OrderComboLeg struct {
-	Price float64 `default:"UNSET_FLOAT"`
+	Price *float64
 }
 
 // -----------------------------------------------------------------------------
 
 func NewOrderComboLeg() OrderComboLeg {
-	ocl := OrderComboLeg{
-		Price: common.UNSET_FLOAT,
-	}
+	ocl := OrderComboLeg{}
 	return ocl
 }
 
 func (o OrderComboLeg) String() string {
-	return utils.FloatMaxString(o.Price)
+	return formatter.FloatMaxString(o.Price)
 }

@@ -17,10 +17,10 @@ type RequestError struct {
 
 // -----------------------------------------------------------------------------
 
-func newRequestError(ts time.Time, code int64, message string, advancedOrderRejectJson string) *RequestError {
+func newRequestError(ts time.Time, code int, message string, advancedOrderRejectJson string) *RequestError {
 	return &RequestError{
 		Timestamp:               ts,
-		Code:                    int(code),
+		Code:                    code,
 		Message:                 message,
 		AdvancedOrderRejectJson: advancedOrderRejectJson,
 	}

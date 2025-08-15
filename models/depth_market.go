@@ -7,8 +7,20 @@ import (
 
 // -----------------------------------------------------------------------------
 
-type MarketDepthData interface {
-	UpdateBook(book *MarketDepthBook)
+type MarketDepthDataOperation int
+
+const (
+	MarketDepthDataOperationInsert MarketDepthDataOperation = iota
+	MarketDepthDataOperationUpdate
+	MarketDepthDataOperationDelete
+	MarketDepthDataOperationClear = -1
+)
+
+type MarketDepthData struct {
+	Position  int
+	Operation MarketDepthDataOperation
+	BidSide   bool
+	Entry     DepthMarketBookEntry
 }
 
 type MarketDepthBook struct {
@@ -24,11 +36,56 @@ type DepthMarketBookEntry struct {
 
 // -----------------------------------------------------------------------------
 
-func NewMarketDepthBook(maxDepth int) MarketDepthBook {
-	return MarketDepthBook{
+func NewMarketDepthBook(maxDepth int) *MarketDepthBook {
+	return &MarketDepthBook{
 		Size: maxDepth,
 		Bids: make([]DepthMarketBookEntry, 0, maxDepth),
 		Asks: make([]DepthMarketBookEntry, 0, maxDepth),
+	}
+}
+
+func (book *MarketDepthBook) UpdateBook(data MarketDepthData) {
+	var bookSide *[]DepthMarketBookEntry
+
+	if data.Operation == MarketDepthDataOperationClear {
+		// Clear book
+		book.Bids = book.Bids[:0]
+		book.Asks = book.Asks[:0]
+		return
+	}
+
+	if data.BidSide {
+		bookSide = &book.Bids
+	} else {
+		bookSide = &book.Asks
+	}
+
+	// Execute operation
+	c := cap(*bookSide)
+	l := len(*bookSide)
+	//goland:noinspection ALL
+	switch data.Operation {
+	case MarketDepthDataOperationInsert:
+		if data.Position < c {
+			*bookSide = (*bookSide)[:l+1]
+			copy((*bookSide)[data.Position+1:], (*bookSide)[data.Position:l])
+		} else {
+			copy((*bookSide)[data.Position+1:], (*bookSide)[data.Position:l-1])
+		}
+		(*bookSide)[data.Position] = data.Entry
+
+	case MarketDepthDataOperationUpdate:
+		if data.Position > l {
+			*bookSide = (*bookSide)[:data.Position+1]
+		}
+		(*bookSide)[data.Position] = data.Entry
+
+	case MarketDepthDataOperationDelete:
+		if data.Position < l {
+			copy((*bookSide)[data.Position:], (*bookSide)[data.Position+1:])
+			(*bookSide)[l-1] = DepthMarketBookEntry{}
+			*bookSide = (*bookSide)[:l-1]
+		}
 	}
 }
 

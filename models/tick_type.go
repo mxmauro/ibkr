@@ -7,7 +7,7 @@ import (
 // -----------------------------------------------------------------------------
 
 // TickType identifiers for all available tick types in the Interactive Brokers TWS API.
-type TickType int
+type TickType int32
 
 const (
 	TickTypeUnset                         TickType = -1
@@ -339,8 +339,6 @@ func (tt TickType) String() string {
 		return "Delayed Yield Bid"
 	case TickTypeDelayedYieldAsk:
 		return "Delayed Yield Ask"
-	default:
-		return fmt.Sprintf("TickType(%d)", tt)
 	}
-
+	return fmt.Sprintf("TickType(%d)", tt)
 }

@@ -2,7 +2,7 @@ package models
 
 // -----------------------------------------------------------------------------
 
-type MarketDataType int
+type MarketDataType int32
 
 const (
 	MarketDataTypeRealtime      MarketDataType = 1

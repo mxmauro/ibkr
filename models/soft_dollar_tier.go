@@ -15,13 +15,13 @@ type SoftDollarTier struct {
 
 // -----------------------------------------------------------------------------
 
-func newSoftDollarTier() SoftDollarTier {
+func NewSoftDollarTier() SoftDollarTier {
 	return SoftDollarTier{}
 }
 
-func (s SoftDollarTier) String() string {
+func (sdt SoftDollarTier) String() string {
 	return fmt.Sprintf("Name: %s, Value: %s, DisplayName: %s",
-		s.Name,
-		s.Value,
-		s.DisplayName)
+		sdt.Name,
+		sdt.Value,
+		sdt.DisplayName)
 }

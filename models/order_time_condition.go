@@ -1,24 +1,24 @@
 package models
 
 import (
-	"github.com/mxmauro/ibkr/utils"
+	"github.com/mxmauro/ibkr/utils/encoders/message"
 )
 
 // -----------------------------------------------------------------------------
 
-type TimeCondition struct {
-	*OperatorCondition
+type OrderTimeCondition struct {
+	OrderOperatorCondition
 	Time string
 }
 
 // -----------------------------------------------------------------------------
 
-func (tc *TimeCondition) decode(msgDec *utils.MessageDecoder) {
-	tc.OperatorCondition.decode(msgDec)
+func (tc *OrderTimeCondition) decode(msgDec *message.Decoder) {
+	tc.OrderOperatorCondition.decode(msgDec)
 	// tc.Time = decodeTime(fields[2], "20060102")
-	tc.Time = msgDec.String(false)
+	tc.Time = msgDec.String()
 }
 
-func (tc *TimeCondition) makeFields() []any {
-	return append(tc.OperatorCondition.makeFields(), tc.Time)
+func (tc *OrderTimeCondition) makeFields() []any {
+	return append(tc.OrderOperatorCondition.makeFields(), tc.Time)
 }

@@ -1,10 +1,9 @@
 package models
 
 import (
-	"bytes"
 	"fmt"
 
-	"github.com/mxmauro/ibkr/utils"
+	"github.com/mxmauro/ibkr/utils/encoders/message"
 )
 
 // -----------------------------------------------------------------------------
@@ -28,14 +27,14 @@ func (tv TagValue) String() string {
 	return fmt.Sprintf("%s=%s", tv.Tag, tv.Value)
 }
 
-func (tvl *TagValueList) EncodeMessage() []byte {
-	buf := bytes.Buffer{}
+func (tvl *TagValueList) EncodeMessage(_ int) ([]byte, error) {
+	msgEnc := message.NewRawEncoder()
 	for _, tv := range *tvl {
-		_, _ = buf.WriteString(tv.Tag)
-		_, _ = buf.WriteRune('=')
-		_, _ = buf.WriteString(tv.Value)
-		_, _ = buf.WriteRune(';')
+		msgEnc.Raw([]byte(tv.Tag))
+		msgEnc.Raw([]byte("="))
+		msgEnc.Raw([]byte(tv.Value))
+		msgEnc.Raw([]byte(";"))
 	}
-	_ = buf.WriteByte(utils.Delimiter())
-	return buf.Bytes()
+	msgEnc.AddDelim()
+	return msgEnc.Bytes(), msgEnc.Err()
 }

@@ -2,13 +2,14 @@ package models
 
 import (
 	"errors"
+	"strings"
 
-	"github.com/mxmauro/ibkr/utils"
+	"github.com/mxmauro/ibkr/utils/encoders/message"
 )
 
 // -----------------------------------------------------------------------------
 
-type OrderConditionType = int64
+type OrderConditionType int32
 
 const (
 	OrderConditionTypePrice         OrderConditionType = 1
@@ -19,26 +20,15 @@ const (
 	OrderConditionTypePercentChange OrderConditionType = 7
 )
 
-// Trigger Methods.
-const (
-	TriggerMethodDefault = iota
-	TriggerMethodDoubleBidAsk
-	TriggerMethodLast
-	TriggerMethodDoubleLast
-	TriggerMethodBidAsk
-	TriggerMethodLastBidAsk
-	TriggerMethodMidPoint
-)
-
 type OrderCondition interface {
 	Type() OrderConditionType
 	String() string
 
-	decode(msgDec *utils.MessageDecoder)
+	decode(msgDec *message.Decoder)
 	makeFields() []any
 }
 
-type orderCondition struct {
+type orderConditionBase struct {
 	condType                OrderConditionType
 	IsConjunctionConnection bool
 }
@@ -48,49 +38,59 @@ type orderCondition struct {
 func NewOrderCondition(condType OrderConditionType) (OrderCondition, error) {
 	switch condType {
 	case OrderConditionTypePrice:
-		return &PriceCondition{
-			ContractCondition: &ContractCondition{
-				OperatorCondition: &OperatorCondition{
-					orderCondition: &orderCondition{condType: condType},
+		return &OrderPriceCondition{
+			OrderContractCondition: OrderContractCondition{
+				OrderOperatorCondition: OrderOperatorCondition{
+					orderConditionBase: orderConditionBase{
+						condType: condType,
+					},
 				},
 			},
 		}, nil
 
 	case OrderConditionTypeTime:
-		return &TimeCondition{
-			OperatorCondition: &OperatorCondition{
-				orderCondition: &orderCondition{condType: condType},
+		return &OrderTimeCondition{
+			OrderOperatorCondition: OrderOperatorCondition{
+				orderConditionBase: orderConditionBase{
+					condType: condType,
+				},
 			},
 		}, nil
 
 	case OrderConditionTypeMargin:
-		return &MarginCondition{
-			OperatorCondition: &OperatorCondition{
-				orderCondition: &orderCondition{condType: condType},
+		return &OrderMarginCondition{
+			OrderOperatorCondition: OrderOperatorCondition{
+				orderConditionBase: orderConditionBase{
+					condType: condType,
+				},
 			},
 		}, nil
 
 	case OrderConditionTypeExecution:
-		return &ExecutionCondition{
-			orderCondition: &orderCondition{
+		return &OrderExecutionCondition{
+			orderConditionBase: orderConditionBase{
 				condType: condType,
 			},
 		}, nil
 
 	case OrderConditionTypeVolume:
-		return &VolumeCondition{
-			ContractCondition: &ContractCondition{
-				OperatorCondition: &OperatorCondition{
-					orderCondition: &orderCondition{condType: condType},
+		return &OrderVolumeCondition{
+			OrderContractCondition: OrderContractCondition{
+				OrderOperatorCondition: OrderOperatorCondition{
+					orderConditionBase: orderConditionBase{
+						condType: condType,
+					},
 				},
 			},
 		}, nil
 
 	case OrderConditionTypePercentChange:
-		return &PercentChangeCondition{
-			ContractCondition: &ContractCondition{
-				OperatorCondition: &OperatorCondition{
-					orderCondition: &orderCondition{condType: condType},
+		return &OrderPercentChangeCondition{
+			OrderContractCondition: OrderContractCondition{
+				OrderOperatorCondition: OrderOperatorCondition{
+					orderConditionBase: orderConditionBase{
+						condType: condType,
+					},
 				},
 			},
 		}, nil
@@ -98,8 +98,8 @@ func NewOrderCondition(condType OrderConditionType) (OrderCondition, error) {
 	return nil, errors.New("invalid OrderConditionType")
 }
 
-func NewOrderConditionFromMessageDecoder(msgDec *utils.MessageDecoder) OrderCondition {
-	condType := msgDec.Int64(false)
+func NewOrderConditionFromMessageDecoder(msgDec *message.Decoder) OrderCondition {
+	condType := OrderConditionType(msgDec.Int32())
 	if msgDec.Err() != nil {
 		return nil
 	}
@@ -117,23 +117,23 @@ func NewOrderConditionFromMessageDecoder(msgDec *utils.MessageDecoder) OrderCond
 
 // -----------------------------------------------------------------------------
 
-func (oc *orderCondition) Type() OrderConditionType {
+func (oc *orderConditionBase) Type() OrderConditionType {
 	return oc.condType
 }
 
-func (oc *orderCondition) decode(msgDec *utils.MessageDecoder) {
-	connector := msgDec.String(false)
-	oc.IsConjunctionConnection = connector == "a"
+func (oc *orderConditionBase) decode(msgDec *message.Decoder) {
+	connector := msgDec.String()
+	oc.IsConjunctionConnection = strings.Compare(connector, "a") == 0
 }
 
-func (oc *orderCondition) makeFields() []any {
+func (oc *orderConditionBase) makeFields() []any {
 	if oc.IsConjunctionConnection {
 		return []any{"a"}
 	}
 	return []any{"o"}
 }
 
-func (oc *orderCondition) String() string {
+func (oc *orderConditionBase) String() string {
 	if oc.IsConjunctionConnection {
 		return "<AND>"
 	}

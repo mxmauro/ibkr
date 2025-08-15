@@ -3,15 +3,15 @@ package ibkr
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
-	"math"
 	"math/rand/v2"
 	"net"
 	"sync/atomic"
 
 	"github.com/mxmauro/ibkr/common"
 	"github.com/mxmauro/ibkr/connection"
-	"github.com/mxmauro/ibkr/utils"
+	"github.com/mxmauro/ibkr/utils/encoders/message"
 )
 
 // -----------------------------------------------------------------------------
@@ -104,10 +104,10 @@ func (c *Client) initialHandshake(ctx context.Context, conn *connection.Connecti
 	}
 
 	// Decode message
-	msgDec := utils.NewMessageDecoder(msg)
+	msgDec := message.NewDecoder(msg)
 
-	serverVersion := msgDec.Int64(false)
-	connTimeOrNewServerHost := msgDec.String(false)
+	serverVersion := msgDec.Int32()
+	connTimeOrNewServerHost := msgDec.String()
 	if msgDec.Err() != nil {
 		return "", err
 	}
@@ -121,7 +121,7 @@ func (c *Client) initialHandshake(ctx context.Context, conn *connection.Connecti
 	}
 
 	// Store server version
-	c.serverVersion = int32(serverVersion)
+	c.serverVersion = serverVersion
 
 	// Done
 	return "", nil
@@ -130,7 +130,7 @@ func (c *Client) initialHandshake(ctx context.Context, conn *connection.Connecti
 func (c *Client) startApi(conn *connection.Connection, opts Options) error {
 	const VERSION = 2
 
-	msgEnc := utils.NewMessageEncoder().
+	msgEnc := message.NewEncoder().
 		RawUInt32(uint32(common.START_API)).
 		Int(VERSION).
 		Int(int(c.clientID)).
@@ -141,7 +141,8 @@ func (c *Client) startApi(conn *connection.Connection, opts Options) error {
 
 // This function ignores all the initial incoming messages until we receive the next valid request ID.
 func (c *Client) waitUntilNextReqID(ctx context.Context, conn *connection.Connection) error {
-	var msgID int64
+	var msgID uint32
+	var usingProtobuf bool
 
 	for {
 		msg, err := conn.WaitForNextMessage(ctx)
@@ -149,22 +150,25 @@ func (c *Client) waitUntilNextReqID(ctx context.Context, conn *connection.Connec
 			return err
 		}
 
-		msgID, _, err = c.getIncomingMessageID(msg)
+		msgID, usingProtobuf, err = c.getIncomingMessageID(msg)
 		if err != nil {
 			return err
 		}
 		if msgID == common.NEXT_VALID_ID {
-			msgDec := utils.NewMessageDecoder(msg[4:])
-			reqID := msgDec.Int64(false)
+			if usingProtobuf {
+				return errors.New("unsupported NEXT_VALID_ID message with protobuf")
+			}
+			msgDec := message.NewDecoder(msg[4:])
+			reqID := msgDec.Int32()
 			if msgDec.Err() != nil {
 				return msgDec.Err()
 			}
-			if reqID < 1 || reqID > math.MaxInt32 {
+			if reqID < 1 {
 				reqID = 1
 			}
 
 			// Done
-			atomic.StoreInt32(&c.nextValidReqID, int32(reqID))
+			atomic.StoreInt32(&c.nextValidReqID, reqID)
 			return nil
 		}
 	}
@@ -195,7 +199,7 @@ func (c *Client) connectionWorker() {
 	}
 
 	// If the connection dropped, mark as closed
-	if err == nil || utils.IsConnectionDropError(err) {
+	if err == nil || connection.IsConnectionDropError(err) {
 		err = net.ErrClosed
 	}
 

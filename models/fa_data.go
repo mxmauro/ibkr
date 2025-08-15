@@ -2,7 +2,7 @@ package models
 
 // -----------------------------------------------------------------------------
 
-type FaData int64
+type FaData int32
 
 const (
 	FaDataGroups  FaData = 1
@@ -17,7 +17,6 @@ func (fa FaData) String() string {
 		return "GROUPS"
 	case FaDataAliases:
 		return "ALIASES"
-	default:
-		return ""
 	}
+	return ""
 }

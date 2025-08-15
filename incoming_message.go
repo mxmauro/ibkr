@@ -5,29 +5,24 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/mxmauro/ibkr/common"
 	"github.com/mxmauro/ibkr/models"
+	"github.com/mxmauro/ibkr/proto/protobuf"
 	"github.com/mxmauro/ibkr/utils"
+	"github.com/mxmauro/ibkr/utils/encoders/message"
+	"github.com/mxmauro/ibkr/utils/encoders/protofmt"
 )
 
 // -----------------------------------------------------------------------------
 
-type implDepthMarketData struct {
-	position  int
-	operation int
-	bidSide   bool
-	entry     models.DepthMarketBookEntry
-}
-
-// -----------------------------------------------------------------------------
-
-func (c *Client) getIncomingMessageID(msg []byte) (msgID int64, usingProtobuf bool, err error) {
+func (c *Client) getIncomingMessageID(msg []byte) (msgID uint32, usingProtobuf bool, err error) {
 	if len(msg) >= 4 {
-		msgID = int64(binary.BigEndian.Uint32(msg))
+		msgID = binary.BigEndian.Uint32(msg)
 		if msgID >= common.PROTOBUF_MSG_ID {
 			usingProtobuf = true
 			msgID -= common.PROTOBUF_MSG_ID
@@ -39,252 +34,326 @@ func (c *Client) getIncomingMessageID(msg []byte) (msgID int64, usingProtobuf bo
 }
 
 func (c *Client) processIncomingMessage(msg []byte) error {
-	msgID, _, err := c.getIncomingMessageID(msg)
+	msgID, usingProtobuf, err := c.getIncomingMessageID(msg)
 	if err != nil {
 		return err
 	}
 
-	msgDec := utils.NewMessageDecoder(msg[4:])
-	switch msgID {
-	case common.TICK_PRICE:
-		return c.processTickPriceMsg(msgDec)
-	case common.TICK_SIZE:
-		return c.processTickSizeMsg(msgDec)
-	case common.TICK_OPTION_COMPUTATION:
-		return c.processTickOptionComputationMsg(msgDec)
-	case common.TICK_GENERIC:
-		return c.processTickGenericMsg(msgDec)
-	case common.TICK_STRING:
-		return c.processTickStringMsg(msgDec)
-	case common.TICK_EFP:
-		return c.processTickEfpMsg(msgDec)
+	if usingProtobuf {
+		msgDec := protofmt.NewDecoder(msg[4:])
+		switch msgID {
+		case common.TICK_PRICE:
+			return c.processTickPriceProtobuf(msgDec)
+		case common.TICK_SIZE:
+			return c.processTickSizeProtobuf(msgDec)
+		case common.TICK_OPTION_COMPUTATION:
+			return c.processTickOptionComputationProtobuf(msgDec)
+		case common.TICK_GENERIC:
+			return c.processTickGenericProtobuf(msgDec)
+		case common.TICK_STRING:
+			return c.processTickStringProtobuf(msgDec)
+		case common.ERR_MSG:
+			return c.processErrorMessageProtobuf(msgDec)
+		case common.CONTRACT_DATA:
+			return c.processContractDataProtobuf(msgDec)
+		case common.BOND_CONTRACT_DATA:
+			return c.processBondContractDataProtobuf(msgDec)
+		case common.MARKET_DEPTH:
+			return c.processMarketDepthProtobuf(msgDec)
+		case common.MARKET_DEPTH_L2:
+			return c.processMarketDepthL2Protobuf(msgDec)
+		case common.MANAGED_ACCTS:
+			return c.processManagedAccountsProtobuf(msgDec)
+		case common.HISTORICAL_DATA:
+			return c.processHistoricalDataProtobuf(msgDec)
+		case common.CONTRACT_DATA_END:
+			return c.processContractDataEndProtobuf(msgDec)
+		case common.TICK_SNAPSHOT_END:
+			return c.processTickSnapshotEndProtobuf(msgDec)
+		case common.MARKET_DATA_TYPE:
+			return nil // Ignore this message. We don't use the ticker callback.
+		case common.TICK_REQ_PARAMS:
+			return nil // Ignore this message. We don't use the tick request parameters.
+		case common.HEAD_TIMESTAMP:
+			return c.processHeadTimestampProtobuf(msgDec)
+		case common.HISTORICAL_DATA_UPDATE:
+			return nil // KeepUpToDate is always false, ignore the message
+		case common.HISTORICAL_TICKS:
+			return c.processHistoricalTicksProtobuf(msgDec)
+		case common.HISTORICAL_TICKS_BID_ASK:
+			return c.processHistoricalTicksBidAskProtobuf(msgDec)
+		case common.HISTORICAL_TICKS_LAST:
+			return c.processHistoricalTicksLastProtobuf(msgDec)
+		case common.HISTORICAL_DATA_END:
+			return c.processHistoricalDataEndProtobuf(msgDec)
+		}
+	} else {
+		msgDec := message.NewDecoder(msg[4:])
+		switch msgID {
+		case math.MaxUint32:
+			return net.ErrClosed
 
-		/*
-			case ORDER_STATUS:
-				return c.processOrderStatusMsg(msgDec)
-		*/
+		case common.TICK_PRICE:
+			return c.processTickPriceMsg(msgDec)
+		case common.TICK_SIZE:
+			return c.processTickSizeMsg(msgDec)
+		case common.TICK_OPTION_COMPUTATION:
+			return c.processTickOptionComputationMsg(msgDec)
+		case common.TICK_GENERIC:
+			return c.processTickGenericMsg(msgDec)
+		case common.TICK_STRING:
+			return c.processTickStringMsg(msgDec)
+		case common.TICK_EFP:
+			return c.processTickEfpMsg(msgDec)
 
-	case common.ERR_MSG:
-		return c.processErrorMessage(msgDec)
-		/*
-			case OPEN_ORDER:
-				return c.processOpenOrderMsg(msgDec)
-			case ACCT_VALUE:
-				return c.processAcctValueMsg(msgDec)
-			case PORTFOLIO_VALUE:
-				return c.processPortfolioValueMsg(msgDec)
-			case ACCT_UPDATE_TIME:
-				return c.processAcctUpdateTimeMsg(msgDec)
-		*/
+			/*
+				case ORDER_STATUS:
+					return c.processOrderStatusMsg(msgDec)
+			*/
 
-	case common.NEXT_VALID_ID:
-		return nil // Ignore this message
-	case common.CONTRACT_DATA:
-		return c.processContractDataMsg(msgDec)
-	case common.BOND_CONTRACT_DATA:
-		return c.processBondContractDataMsg(msgDec)
+		case common.ERR_MSG:
+			return c.processErrorMessageMsg(msgDec)
+			/*
+				case OPEN_ORDER:
+					return c.processOpenOrderMsg(msgDec)
+				case ACCT_VALUE:
+					return c.processAcctValueMsg(msgDec)
+				case PORTFOLIO_VALUE:
+					return c.processPortfolioValueMsg(msgDec)
+				case ACCT_UPDATE_TIME:
+					return c.processAcctUpdateTimeMsg(msgDec)
+			*/
 
-		/*
-			case EXECUTION_DATA:
-				if useProtoBuf {
-					return c.processExecutionDetailsMsgProtoBuf(msgDec)
-				} else {
-					return c.processExecutionDetailsMsg(msgDec)
-				}
-		*/
+		case common.NEXT_VALID_ID:
+			return nil // Ignore this message
+		case common.CONTRACT_DATA:
+			return c.processContractDataMsg(msgDec)
+		case common.BOND_CONTRACT_DATA:
+			return c.processBondContractDataMsg(msgDec)
 
-	case common.MARKET_DEPTH:
-		return c.processMarketDepthMsg(msgDec)
-	case common.MARKET_DEPTH_L2:
-		return c.processMarketDepthL2Msg(msgDec)
+			/*
+				case EXECUTION_DATA:
+					if useProtoBuf {
+						return c.processExecutionDetailsMsgProtoBuf(msgDec)
+					} else {
+						return c.processExecutionDetailsMsg(msgDec)
+					}
+			*/
 
-	case common.MANAGED_ACCTS:
-		return c.processManagedAccountsMsg(msgDec)
+		case common.MARKET_DEPTH:
+			return c.processMarketDepthMsg(msgDec)
+		case common.MARKET_DEPTH_L2:
+			return c.processMarketDepthL2Msg(msgDec)
+		case common.MANAGED_ACCTS:
+			return c.processManagedAccountsMsg(msgDec)
 
-		/*
-			case RECEIVE_FA:
-				return c.processReceiveFaMsg(msgDec)
-		*/
+			/*
+				case RECEIVE_FA:
+					return c.processReceiveFaMsg(msgDec)
+			*/
 
-	case common.HISTORICAL_DATA:
-		return c.processHistoricalDataMsg(msgDec)
+		case common.HISTORICAL_DATA:
+			return c.processHistoricalDataMsg(msgDec)
 
-		/*
-			case SCANNER_DATA:
-				return c.processScannerDataMsg(msgDec)
-			case SCANNER_PARAMETERS:
-				return c.processScannerParametersMsg(msgDec)
-		*/
+			/*
+				case SCANNER_DATA:
+					return c.processScannerDataMsg(msgDec)
+				case SCANNER_PARAMETERS:
+					return c.processScannerParametersMsg(msgDec)
+			*/
 
-	case common.CURRENT_TIME:
-		return nil // Ignore this message. We use the one having milliseconds
-		/*
-			case REAL_TIME_BARS:
-				return c.processRealTimeBarsMsg(msgDec)
-			case FUNDAMENTAL_DATA:
-				return c.processFundamentalDataMsg(msgDec)
-		*/
+		case common.CURRENT_TIME:
+			return nil // Ignore this message. We use the one having milliseconds
+			/*
+				case REAL_TIME_BARS:
+					return c.processRealTimeBarsMsg(msgDec)
+				case FUNDAMENTAL_DATA:
+					return c.processFundamentalDataMsg(msgDec)
+			*/
 
-	case common.CONTRACT_DATA_END:
-		return c.processContractDataEndMsg(msgDec)
-	case common.OPEN_ORDER_END:
-		return c.processOpenOrdersEndMsg(msgDec)
+		case common.CONTRACT_DATA_END:
+			return c.processContractDataEndMsg(msgDec)
+			/*
+				case common.OPEN_ORDER_END:
+					return c.processOpenOrdersEndMsg(msgDec)
 
-		/*
-			case ACCT_DOWNLOAD_END:
-				return c.processAcctDownloadEndMsg(msgDec)
-			case EXECUTION_DATA_END:
-				if useProtoBuf {
-					return c.processExecutionDetailsEndMsgProtoBuf(msgDec)
-				} else {
-					return c.processExecutionDetailsEndMsg(msgDec)
-				}
-			case DELTA_NEUTRAL_VALIDATION:
-				return c.processDeltaNeutralValidationMsg(msgDec)
-		*/
-	case common.TICK_SNAPSHOT_END:
-		return c.processTickSnapshotEndMsg(msgDec)
-	case common.MARKET_DATA_TYPE:
-		return nil // Ignore this message. We don't use the ticker callback.
-		/*
-			case COMMISSION_AND_FEES_REPORT:
-				return c.processCommissionAndFeesReportMsg(msgDec)
-			case POSITION_DATA:
-				return c.processPositionDataMsg(msgDec)
-			case POSITION_END:
-				return c.processPositionEndMsg(msgDec)
-			case ACCOUNT_SUMMARY:
-				return c.processAccountSummaryMsg(msgDec)
-			case ACCOUNT_SUMMARY_END:
-				return c.processAccountSummaryEndMsg(msgDec)
-			case VERIFY_MESSAGE_API:
-				return c.processVerifyMessageApiMsg(msgDec)
-			case VERIFY_COMPLETED:
-				return c.processVerifyCompletedMsg(msgDec)
-			case DISPLAY_GROUP_LIST:
-				return c.processDisplayGroupListMsg(msgDec)
-			case DISPLAY_GROUP_UPDATED:
-				return c.processDisplayGroupUpdatedMsg(msgDec)
-			case VERIFY_AND_AUTH_MESSAGE_API:
-				return c.processVerifyAndAuthMessageApiMsg(msgDec)
-			case VERIFY_AND_AUTH_COMPLETED:
-				return c.processVerifyAndAuthCompletedMsg(msgDec)
-			case POSITION_MULTI:
-				return c.processPositionMultiMsg(msgDec)
-			case POSITION_MULTI_END:
-				return c.processPositionMultiEndMsg(msgDec)
-			case ACCOUNT_UPDATE_MULTI:
-				return c.processAccountUpdateMultiMsg(msgDec)
-			case ACCOUNT_UPDATE_MULTI_END:
-				return c.processAccountUpdateMultiEndMsg(msgDec)
-			case SECURITY_DEFINITION_OPTION_PARAMETER:
-				return c.processSecurityDefinitionOptionalParameterMsg(msgDec)
-			case SECURITY_DEFINITION_OPTION_PARAMETER_END:
-				return c.processSecurityDefinitionOptionalParameterEndMsg(msgDec)
-			case SOFT_DOLLAR_TIERS:
-				return c.processSoftDollarTiersMsg(msgDec)
-			case FAMILY_CODES:
-				return c.processFamilyCodesMsg(msgDec)
-			case SMART_COMPONENTS:
-				return c.processSmartComponentsMsg(msgDec)
-			case TICK_REQ_PARAMS:
-				return c.processTickReqParamsMsg1(msgDec)
-		*/
-	case common.SYMBOL_SAMPLES:
-		return c.processSymbolSamplesMsg(msgDec)
-		/*
-			case MKT_DEPTH_EXCHANGES:
-				return c.processMktDepthExchangesMsg(msgDec)
-			case TICK_NEWS:
-				return c.processTickNewsMsg(msgDec)
-			case NEWS_PROVIDERS:
-				return c.processNewsProvidersMsg(msgDec)
-			case NEWS_ARTICLE:
-				return c.processNewsArticleMsg(msgDec)
-			case HISTORICAL_NEWS:
-				return c.processHistoricalNewsMsg(msgDec)
-			case HISTORICAL_NEWS_END:
-				return c.processHistoricalNewsEndMsg(msgDec)
-		*/
-	case common.HEAD_TIMESTAMP:
-		return c.processHeadTimestampMsg(msgDec)
-		/*
-			case HISTOGRAM_DATA:
-				return c.processHistogramDataMsg(msgDec)
-		*/
-	case common.HISTORICAL_DATA_UPDATE:
-		return nil // KeepUpToDate is always false, ignore the message
-		/*
-			case REROUTE_MKT_DATA_REQ:
-				return c.processRerouteMktDataReqMsg(msgDec)
-			case REROUTE_MKT_DEPTH_REQ:
-				return c.processRerouteMktDepthReqMsg(msgDec)
-			case MARKET_RULE:
-				return c.processMarketRuleMsg(msgDec)
-			case PNL:
-				return c.processPnLMsg(msgDec)
-			case PNL_SINGLE:
-				return c.processPnLSingleMsg(msgDec)
-		*/
-	case common.HISTORICAL_TICKS:
-		return c.processHistoricalTicks(msgDec)
-	case common.HISTORICAL_TICKS_BID_ASK:
-		return c.processHistoricalTicksBidAsk(msgDec)
-	case common.HISTORICAL_TICKS_LAST:
-		return c.processHistoricalTicksLast(msgDec)
-		/*
-			case TICK_BY_TICK:
-				return c.processTickByTickDataMsg(msgDec)
-			case ORDER_BOUND:
-				return c.processOrderBoundMsg(msgDec)
-			case COMPLETED_ORDER:
-				return c.processCompletedOrderMsg(msgDec)
-			case COMPLETED_ORDERS_END:
-				return c.processCompletedOrdersEndMsg(msgDec)
-			case REPLACE_FA_END:
-				return c.processReplaceFAEndMsg(msgDec)
-			case WSH_META_DATA:
-				return c.processWshMetaData(msgDec)
-			case WSH_EVENT_DATA:
-				return c.processWshEventData(msgDec)
-			case HISTORICAL_SCHEDULE:
-				return c.processHistoricalSchedule(msgDec)
-			case USER_INFO:
-				return c.processUserInfo(msgDec)
-		*/
-	case common.HISTORICAL_DATA_END:
-		return c.processHistoricalDataEndMsg(msgDec)
-	case common.CURRENT_TIME_IN_MILLIS:
-		return c.processCurrentTimeInMillisMsg(msgDec)
+					/*
+						case ACCT_DOWNLOAD_END:
+							return c.processAcctDownloadEndMsg(msgDec)
+						case EXECUTION_DATA_END:
+							if useProtoBuf {
+								return c.processExecutionDetailsEndMsgProtoBuf(msgDec)
+							} else {
+								return c.processExecutionDetailsEndMsg(msgDec)
+							}
+						case DELTA_NEUTRAL_VALIDATION:
+							return c.processDeltaNeutralValidationMsg(msgDec)
+			*/
+		case common.TICK_SNAPSHOT_END:
+			return c.processTickSnapshotEndMsg(msgDec)
+		case common.MARKET_DATA_TYPE:
+			return nil // Ignore this message. We don't use the ticker callback.
+			/*
+				case COMMISSION_AND_FEES_REPORT:
+					return c.processCommissionAndFeesReportMsg(msgDec)
+				case POSITION_DATA:
+					return c.processPositionDataMsg(msgDec)
+				case POSITION_END:
+					return c.processPositionEndMsg(msgDec)
+				case ACCOUNT_SUMMARY:
+					return c.processAccountSummaryMsg(msgDec)
+				case ACCOUNT_SUMMARY_END:
+					return c.processAccountSummaryEndMsg(msgDec)
+				case VERIFY_MESSAGE_API:
+					return c.processVerifyMessageApiMsg(msgDec)
+				case VERIFY_COMPLETED:
+					return c.processVerifyCompletedMsg(msgDec)
+				case DISPLAY_GROUP_LIST:
+					return c.processDisplayGroupListMsg(msgDec)
+				case DISPLAY_GROUP_UPDATED:
+					return c.processDisplayGroupUpdatedMsg(msgDec)
+				case VERIFY_AND_AUTH_MESSAGE_API:
+					return c.processVerifyAndAuthMessageApiMsg(msgDec)
+				case VERIFY_AND_AUTH_COMPLETED:
+					return c.processVerifyAndAuthCompletedMsg(msgDec)
+				case POSITION_MULTI:
+					return c.processPositionMultiMsg(msgDec)
+				case POSITION_MULTI_END:
+					return c.processPositionMultiEndMsg(msgDec)
+				case ACCOUNT_UPDATE_MULTI:
+					return c.processAccountUpdateMultiMsg(msgDec)
+				case ACCOUNT_UPDATE_MULTI_END:
+					return c.processAccountUpdateMultiEndMsg(msgDec)
+				case SECURITY_DEFINITION_OPTION_PARAMETER:
+					return c.processSecurityDefinitionOptionalParameterMsg(msgDec)
+				case SECURITY_DEFINITION_OPTION_PARAMETER_END:
+					return c.processSecurityDefinitionOptionalParameterEndMsg(msgDec)
+				case SOFT_DOLLAR_TIERS:
+					return c.processSoftDollarTiersMsg(msgDec)
+				case FAMILY_CODES:
+					return c.processFamilyCodesMsg(msgDec)
+				case SMART_COMPONENTS:
+					return c.processSmartComponentsMsg(msgDec)
+			*/
+
+		case common.TICK_REQ_PARAMS:
+			return nil // Ignore this message. We don't use the tick request parameters.
+		case common.SYMBOL_SAMPLES:
+			return c.processSymbolSamplesMsg(msgDec)
+			/*
+				case MKT_DEPTH_EXCHANGES:
+					return c.processMktDepthExchangesMsg(msgDec)
+				case TICK_NEWS:
+					return c.processTickNewsMsg(msgDec)
+				case NEWS_PROVIDERS:
+					return c.processNewsProvidersMsg(msgDec)
+				case NEWS_ARTICLE:
+					return c.processNewsArticleMsg(msgDec)
+				case HISTORICAL_NEWS:
+					return c.processHistoricalNewsMsg(msgDec)
+				case HISTORICAL_NEWS_END:
+					return c.processHistoricalNewsEndMsg(msgDec)
+			*/
+		case common.HEAD_TIMESTAMP:
+			return c.processHeadTimestampMsg(msgDec)
+			/*
+				case HISTOGRAM_DATA:
+					return c.processHistogramDataMsg(msgDec)
+			*/
+		case common.HISTORICAL_DATA_UPDATE:
+			return nil // KeepUpToDate is always false, ignore the message
+			/*
+				case REROUTE_MKT_DATA_REQ:
+					return c.processRerouteMktDataReqMsg(msgDec)
+				case REROUTE_MKT_DEPTH_REQ:
+					return c.processRerouteMktDepthReqMsg(msgDec)
+				case MARKET_RULE:
+					return c.processMarketRuleMsg(msgDec)
+				case PNL:
+					return c.processPnLMsg(msgDec)
+				case PNL_SINGLE:
+					return c.processPnLSingleMsg(msgDec)
+			*/
+		case common.HISTORICAL_TICKS:
+			return c.processHistoricalTicksMsg(msgDec)
+		case common.HISTORICAL_TICKS_BID_ASK:
+			return c.processHistoricalTicksBidAskMsg(msgDec)
+		case common.HISTORICAL_TICKS_LAST:
+			return c.processHistoricalTicksLastMsg(msgDec)
+			/*
+				case TICK_BY_TICK:
+					return c.processTickByTickDataMsg(msgDec)
+				case ORDER_BOUND:
+					return c.processOrderBoundMsg(msgDec)
+				case COMPLETED_ORDER:
+					return c.processCompletedOrderMsg(msgDec)
+				case COMPLETED_ORDERS_END:
+					return c.processCompletedOrdersEndMsg(msgDec)
+				case REPLACE_FA_END:
+					return c.processReplaceFAEndMsg(msgDec)
+				case WSH_META_DATA:
+					return c.processWshMetaData(msgDec)
+				case WSH_EVENT_DATA:
+					return c.processWshEventData(msgDec)
+				case HISTORICAL_SCHEDULE:
+					return c.processHistoricalSchedule(msgDec)
+				case USER_INFO:
+					return c.processUserInfo(msgDec)
+			*/
+		case common.HISTORICAL_DATA_END:
+			return c.processHistoricalDataEndMsg(msgDec)
+		case common.CURRENT_TIME_IN_MILLIS:
+			return c.processCurrentTimeInMillisMsg(msgDec)
+		}
 	}
 
 	// Raise the event if an event handler is present
 	if c.eventsHandler != nil {
-		c.eventsHandler.ReceivedUnknownMessage(int(msgID))
+		c.eventsHandler.ReceivedUnknownMessage(msgID)
 	}
 
 	// Done
 	return nil
 }
 
-func (c *Client) processTickPriceMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processTickPriceMsg(msgDec *message.Decoder) error {
 	msgDec.Skip() // version
 	// Gets the originating ticker ID
-	tickerID := c.decodeRequestID(msgDec, false)
-	if tickerID == 0 {
+	tickerID := msgDec.RequestID(false)
+	tickType := models.TickType(msgDec.Int32())
+	price := msgDec.Float()
+	size := models.NewDecimalFromMessageDecoder(msgDec) // ver 2 field
+	attrMask := msgDec.Int32()                          // ver 3 field
+	if msgDec.Err() != nil {
 		return msgDec.Err()
 	}
 
+	// Done
+	return c.processTickPriceCommon(tickerID, tickType, price, size, attrMask)
+}
+
+func (c *Client) processTickPriceProtobuf(msgDec *protofmt.Decoder) error {
+	pb := protobuf.TickPrice{}
+	msgDec.Unmarshal(&pb)
+	// Gets the originating ticker ID
+	tickerID := msgDec.RequestID(pb.ReqId, false)
+	tickType := models.TickType(msgDec.Int32(pb.TickType))
+	price := msgDec.Float(pb.Price)
+	size := models.NewDecimalFromProtobufDecoder(msgDec, pb.Size)
+	attrMask := msgDec.Int32(pb.AttrMask)
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
+
+	// Done
+	return c.processTickPriceCommon(tickerID, tickType, price, size, attrMask)
+}
+
+func (c *Client) processTickPriceCommon(
+	tickerID int32, tickType models.TickType, price float64, size models.Decimal, attrMask int32,
+) error {
 	c.reqMgr.withRequestWithID(tickerID, func(_resp interface{}) (bool, error) {
 		resp := _resp.(*models.TopMarketDataResponse)
-
-		tickType := models.TickType(msgDec.Int64(false))
-		price := msgDec.Float64(false)
-		size := models.NewDecimalFromMessageDecoder(msgDec, false) // ver 2 field
-		attrMask := msgDec.Int64(false)                            // ver 3 field
-		if msgDec.Err() != nil {
-			return false, msgDec.Err()
-		}
 
 		// Notify
 		data := models.NewTopMarketDataPrice(tickType)
@@ -319,25 +388,41 @@ func (c *Client) processTickPriceMsg(msgDec *utils.MessageDecoder) error {
 	})
 
 	// Done
-	return msgDec.Err()
+	return nil
 }
 
-func (c *Client) processTickSizeMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processTickSizeMsg(msgDec *message.Decoder) error {
 	msgDec.Skip() // version
 	// Gets the originating ticker ID
-	tickerID := c.decodeRequestID(msgDec, false)
-	if tickerID == 0 {
+	tickerID := msgDec.RequestID(false)
+	tickType := models.TickType(msgDec.Int32())
+	size := models.NewDecimalFromMessageDecoder(msgDec)
+	if msgDec.Err() != nil {
 		return msgDec.Err()
 	}
 
+	// Done
+	return c.processTickSizeCommon(tickerID, tickType, size)
+}
+
+func (c *Client) processTickSizeProtobuf(msgDec *protofmt.Decoder) error {
+	pb := protobuf.TickSize{}
+	msgDec.Unmarshal(&pb)
+	// Gets the originating ticker ID
+	tickerID := msgDec.RequestID(pb.ReqId, false)
+	tickType := models.TickType(msgDec.Int32(pb.TickType))
+	size := models.NewDecimalFromProtobufDecoder(msgDec, pb.Size)
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
+
+	// Done
+	return c.processTickSizeCommon(tickerID, tickType, size)
+}
+
+func (c *Client) processTickSizeCommon(tickerID int32, tickType models.TickType, size models.Decimal) error {
 	c.reqMgr.withRequestWithID(tickerID, func(_resp interface{}) (bool, error) {
 		resp := _resp.(*models.TopMarketDataResponse)
-
-		tickType := models.TickType(msgDec.Int64(false))
-		size := models.NewDecimalFromMessageDecoder(msgDec, false)
-		if msgDec.Err() != nil {
-			return false, msgDec.Err()
-		}
 
 		// Notify
 		data := models.NewTopMarketDataSize(tickType)
@@ -349,88 +434,131 @@ func (c *Client) processTickSizeMsg(msgDec *utils.MessageDecoder) error {
 	})
 
 	// Done
-	return msgDec.Err()
+	return nil
 }
 
-func (c *Client) processTickOptionComputationMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processTickOptionComputationMsg(msgDec *message.Decoder) error {
 	// Gets the originating ticker ID
-	tickerID := c.decodeRequestID(msgDec, false)
-	if tickerID == 0 {
+	tickerID := msgDec.RequestID(false)
+	tickType := models.TickType(msgDec.Int32())
+	tickAttrib := msgDec.Int32()
+	impliedVol := msgDec.FloatMax()
+	if impliedVol != nil && utils.EqualFloat(*impliedVol, -1) { // -1 is the "not computed" indicator
+		impliedVol = nil
+	}
+	delta := msgDec.FloatMax()
+	if delta != nil && utils.EqualFloat(*delta, -2) { // -2 is the "not computed" indicator
+		delta = nil
+	}
+	var price *float64
+	var pvDividend *float64
+	if tickType == models.TickTypeModelOptionComputation || tickType == models.TickTypeDelayedModelOptionComputation {
+		price = msgDec.FloatMax()
+		if price != nil && utils.EqualFloat(*price, -1) { // -1 is the "not computed" indicator
+			price = nil
+		}
+		pvDividend = msgDec.FloatMax()
+		if pvDividend != nil && utils.EqualFloat(*pvDividend, -1) { // -1 is the "not computed" indicator
+			pvDividend = nil
+		}
+	}
+	gamma := msgDec.FloatMax()
+	if gamma != nil && utils.EqualFloat(*gamma, -2) { // -2 is the "not yet computed" indicator
+		gamma = nil
+	}
+	vega := msgDec.FloatMax()
+	if vega != nil && utils.EqualFloat(*vega, -2) { // -2 is the "not yet computed" indicator
+		vega = nil
+	}
+	theta := msgDec.FloatMax()
+	if theta != nil && utils.EqualFloat(*theta, -2) { // -2 is the "not yet computed" indicator
+		theta = nil
+	}
+	undPrice := msgDec.FloatMax()
+	if undPrice != nil && utils.EqualFloat(*undPrice, -1) { // -1 is the "not computed" indicator
+		undPrice = nil
+	}
+	if msgDec.Err() != nil {
 		return msgDec.Err()
 	}
 
+	// Done
+	return c.processTickOptionComputationCommon(
+		tickerID, tickType, tickAttrib, impliedVol, delta, price, pvDividend, gamma, vega, theta, undPrice,
+	)
+}
+
+func (c *Client) processTickOptionComputationProtobuf(msgDec *protofmt.Decoder) error {
+	pb := protobuf.TickOptionComputation{}
+	msgDec.Unmarshal(&pb)
+	// Gets the originating ticker ID
+	tickerID := msgDec.RequestID(pb.ReqId, false)
+	tickType := models.TickType(msgDec.Int32(pb.TickType))
+	tickAttrib := msgDec.Int32(pb.TickAttrib)
+	impliedVol := msgDec.FloatMax(pb.ImpliedVol)
+	if impliedVol != nil && utils.EqualFloat(*impliedVol, -1) { // -1 is the "not computed" indicator
+		impliedVol = nil
+	}
+	delta := msgDec.FloatMax(pb.Delta)
+	if delta != nil && utils.EqualFloat(*delta, -2) { // -2 is the "not computed" indicator
+		delta = nil
+	}
+	var price *float64
+	var pvDividend *float64
+	if tickType == models.TickTypeModelOptionComputation || tickType == models.TickTypeDelayedModelOptionComputation {
+		price = msgDec.FloatMax(pb.OptPrice)
+		if price != nil && utils.EqualFloat(*price, -1) { // -1 is the "not computed" indicator
+			price = nil
+		}
+		pvDividend = msgDec.FloatMax(pb.PvDividend)
+		if pvDividend != nil && utils.EqualFloat(*pvDividend, -1) { // -1 is the "not computed" indicator
+			pvDividend = nil
+		}
+	}
+	gamma := msgDec.FloatMax(pb.Gamma)
+	if gamma != nil && utils.EqualFloat(*gamma, -2) { // -2 is the "not yet computed" indicator
+		gamma = nil
+	}
+	vega := msgDec.FloatMax(pb.Vega)
+	if vega != nil && utils.EqualFloat(*vega, -2) { // -2 is the "not yet computed" indicator
+		vega = nil
+	}
+	theta := msgDec.FloatMax(pb.Theta)
+	if theta != nil && utils.EqualFloat(*theta, -2) { // -2 is the "not yet computed" indicator
+		theta = nil
+	}
+	undPrice := msgDec.FloatMax(pb.UndPrice)
+	if undPrice != nil && utils.EqualFloat(*undPrice, -1) { // -1 is the "not computed" indicator
+		undPrice = nil
+	}
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
+
+	// Done
+	return c.processTickOptionComputationCommon(
+		tickerID, tickType, tickAttrib, impliedVol, delta, price, pvDividend, gamma, vega, theta, undPrice,
+	)
+}
+
+func (c *Client) processTickOptionComputationCommon(
+	tickerID int32, tickType models.TickType, tickAttrib int32, impliedVol *float64, delta *float64, price *float64,
+	pvDividend *float64, gamma *float64, vega *float64, theta *float64, undPrice *float64,
+) error {
 	c.reqMgr.withRequestWithID(tickerID, func(_resp interface{}) (bool, error) {
 		resp := _resp.(*models.TopMarketDataResponse)
-
-		tickType := models.TickType(msgDec.Int64(false))
-		tickAttrib := msgDec.Int64(false)
-		impliedVol := msgDec.Float64(false)
-		if impliedVol < 0 {
-			impliedVol = common.UNSET_FLOAT
-		}
-		delta := msgDec.Float64(false)
-		if delta == -2 { // -2 is the "not computed" indicator
-			delta = common.UNSET_FLOAT
-		}
-		price := common.UNSET_FLOAT
-		pvDividend := common.UNSET_FLOAT
-		if tickType == models.TickTypeModelOptionComputation || tickType == models.TickTypeDelayedModelOptionComputation {
-			price = msgDec.Float64(false)
-			if price == -1 { // -1 is the "not computed" indicator
-				price = common.UNSET_FLOAT
-			}
-			pvDividend = msgDec.Float64(false)
-			if pvDividend == -1 { // -1 is the "not computed" indicator
-				pvDividend = common.UNSET_FLOAT
-			}
-		}
-		gamma := msgDec.Float64(false)
-		if gamma == -2 { // -2 is the "not yet computed" indicator
-			gamma = common.UNSET_FLOAT
-		}
-		vega := msgDec.Float64(false)
-		if vega == -2 { // -2 is the "not yet computed" indicator
-			vega = common.UNSET_FLOAT
-		}
-		theta := msgDec.Float64(false)
-		if theta == -2 { // -2 is the "not yet computed" indicator
-			theta = common.UNSET_FLOAT
-		}
-		undPrice := msgDec.Float64(false)
-		if undPrice == -1 { // -1 is the "not computed" indicator
-			undPrice = common.UNSET_FLOAT
-		}
-		if msgDec.Err() != nil {
-			return false, msgDec.Err()
-		}
 
 		// Notify
 		data := models.NewTopMarketDataOptionComputation(tickType)
 		data.IsPriceBased = tickAttrib != 0
-		if impliedVol != common.UNSET_FLOAT {
-			data.ImpliedVolatility = &impliedVol
-		}
-		if delta != common.UNSET_FLOAT {
-			data.Delta = &delta
-		}
-		if price != common.UNSET_FLOAT {
-			data.Price = &price
-		}
-		if pvDividend != common.UNSET_FLOAT {
-			data.PvDividend = &pvDividend
-		}
-		if gamma != common.UNSET_FLOAT {
-			data.Gamma = &gamma
-		}
-		if vega != common.UNSET_FLOAT {
-			data.Vega = &vega
-		}
-		if theta != common.UNSET_FLOAT {
-			data.Theta = &theta
-		}
-		if undPrice != common.UNSET_FLOAT {
-			data.UnderlyingPrice = &undPrice
-		}
+		data.ImpliedVolatility = impliedVol
+		data.Delta = delta
+		data.Price = price
+		data.PvDividend = pvDividend
+		data.Gamma = gamma
+		data.Vega = vega
+		data.Theta = theta
+		data.UnderlyingPrice = undPrice
 		resp.Channel <- data
 
 		// Done
@@ -438,25 +566,38 @@ func (c *Client) processTickOptionComputationMsg(msgDec *utils.MessageDecoder) e
 	})
 
 	// Done
-	return msgDec.Err()
+	return nil
 }
 
-func (c *Client) processTickGenericMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processTickGenericMsg(msgDec *message.Decoder) error {
 	msgDec.Skip() // version
 	// Gets the originating ticker ID
-	tickerID := c.decodeRequestID(msgDec, false)
-	if tickerID == 0 {
+	tickerID := msgDec.RequestID(false)
+	tickType := models.TickType(msgDec.Int32())
+	value := msgDec.Float()
+	if msgDec.Err() != nil {
 		return msgDec.Err()
 	}
 
+	// Done
+	return c.processTickGenericCommon(tickerID, tickType, value)
+}
+
+func (c *Client) processTickGenericProtobuf(msgDec *protofmt.Decoder) error {
+	pb := protobuf.TickGeneric{}
+	msgDec.Unmarshal(&pb)
+	// Gets the originating ticker ID
+	tickerID := msgDec.RequestID(pb.ReqId, false)
+	tickType := models.TickType(msgDec.Int32(pb.TickType))
+	value := msgDec.Float(pb.Value)
+
+	// Done
+	return c.processTickGenericCommon(tickerID, tickType, value)
+}
+
+func (c *Client) processTickGenericCommon(tickerID int32, tickType models.TickType, value float64) error {
 	c.reqMgr.withRequestWithID(tickerID, func(_resp interface{}) (bool, error) {
 		resp := _resp.(*models.TopMarketDataResponse)
-
-		tickType := models.TickType(msgDec.Int64(false))
-		value := msgDec.Float64(false)
-		if msgDec.Err() != nil {
-			return false, msgDec.Err()
-		}
 
 		// Notify
 		data := models.NewTopMarketDataGeneric(tickType)
@@ -468,25 +609,68 @@ func (c *Client) processTickGenericMsg(msgDec *utils.MessageDecoder) error {
 	})
 
 	// Done
-	return msgDec.Err()
+	return nil
 }
 
-func (c *Client) processTickStringMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processTickStringMsg(msgDec *message.Decoder) error {
+	var ts time.Time
+
 	msgDec.Skip() // version
 	// Gets the originating ticker ID
-	tickerID := c.decodeRequestID(msgDec, false)
-	if tickerID == 0 {
+	tickerID := msgDec.RequestID(false)
+	tickType := models.TickType(msgDec.Int32())
+	value := msgDec.String()
+	if msgDec.Err() != nil {
 		return msgDec.Err()
 	}
 
+	switch tickType {
+	case models.TickTypeLastTimestamp:
+		fallthrough
+	case models.TickTypeDelayedLastTimestamp:
+		fallthrough
+	case models.TickTypeLastRegulatoryTime:
+		secs, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			return err
+		}
+		ts = time.Unix(secs, 0).UTC()
+	}
+
+	// Done
+	return c.processTickStringCommon(tickerID, tickType, value, ts)
+}
+
+func (c *Client) processTickStringProtobuf(msgDec *protofmt.Decoder) error {
+	var ts time.Time
+
+	pb := protobuf.TickString{}
+	msgDec.Unmarshal(&pb)
+	// Gets the originating ticker ID
+	tickerID := msgDec.RequestID(pb.ReqId, false)
+	tickType := models.TickType(msgDec.Int32(pb.TickType))
+	value := msgDec.String(pb.Value)
+
+	switch tickType {
+	case models.TickTypeLastTimestamp:
+		fallthrough
+	case models.TickTypeDelayedLastTimestamp:
+		fallthrough
+	case models.TickTypeLastRegulatoryTime:
+		secs, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			return err
+		}
+		ts = time.Unix(secs, 0).UTC()
+	}
+
+	// Done
+	return c.processTickStringCommon(tickerID, tickType, value, ts)
+}
+
+func (c *Client) processTickStringCommon(tickerID int32, tickType models.TickType, value string, ts time.Time) error {
 	c.reqMgr.withRequestWithID(tickerID, func(_resp interface{}) (bool, error) {
 		resp := _resp.(*models.TopMarketDataResponse)
-
-		tickType := models.TickType(msgDec.Int64(false))
-		value := msgDec.String(false)
-		if msgDec.Err() != nil {
-			return false, msgDec.Err()
-		}
 
 		switch tickType {
 		case models.TickTypeLastTimestamp:
@@ -494,14 +678,9 @@ func (c *Client) processTickStringMsg(msgDec *utils.MessageDecoder) error {
 		case models.TickTypeDelayedLastTimestamp:
 			fallthrough
 		case models.TickTypeLastRegulatoryTime:
-			secs, err2 := strconv.Atoi(value)
-			if err2 != nil {
-				return false, err2
-			}
-
 			// Notify
 			data := models.NewTopMarketDataTimestamp(tickType)
-			data.Timestamp = time.Unix(int64(secs), 0).UTC()
+			data.Timestamp = ts
 			resp.Channel <- data
 
 		default:
@@ -516,38 +695,46 @@ func (c *Client) processTickStringMsg(msgDec *utils.MessageDecoder) error {
 	})
 
 	// Done
-	return msgDec.Err()
+	return nil
 }
 
-func (c *Client) processTickEfpMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processTickEfpMsg(msgDec *message.Decoder) error {
 	msgDec.Skip() // version
 	// Gets the originating ticker ID
-	tickerID := c.decodeRequestID(msgDec, false)
-	if tickerID == 0 {
+	tickerID := msgDec.RequestID(false)
+	tickType := models.TickType(msgDec.Int32())
+	basisPoints := msgDec.Float()
+	formattedBasisPoints := msgDec.String()
+	impliedFuturesPrice := msgDec.Float()
+	holdDays := msgDec.Int32()
+	futureLastTradeDate := msgDec.String()
+	dividendImpact := msgDec.Float()
+	dividendsToLastTradeDate := msgDec.Float()
+	if msgDec.Err() != nil {
 		return msgDec.Err()
 	}
 
+	// Done
+	return c.processTickEfpCommon(
+		tickerID, tickType, basisPoints, formattedBasisPoints, impliedFuturesPrice, holdDays, futureLastTradeDate,
+		dividendImpact, dividendsToLastTradeDate,
+	)
+}
+
+func (c *Client) processTickEfpCommon(
+	tickerID int32, tickType models.TickType, basisPoints float64, formattedBasisPoints string,
+	impliedFuturesPrice float64, holdDays int32, futureLastTradeDate string, dividendImpact float64,
+	dividendsToLastTradeDate float64,
+) error {
 	c.reqMgr.withRequestWithID(tickerID, func(_resp interface{}) (bool, error) {
 		resp := _resp.(*models.TopMarketDataResponse)
-
-		tickType := models.TickType(msgDec.Int64(false))
-		basisPoints := msgDec.Float64(false)
-		formattedBasisPoints := msgDec.String(false)
-		totalDividends := msgDec.Float64(false)
-		holdDays := msgDec.Int64(false)
-		futureLastTradeDate := msgDec.String(false)
-		dividendImpact := msgDec.Float64(false)
-		dividendsToLastTradeDate := msgDec.Float64(false)
-		if msgDec.Err() != nil {
-			return false, msgDec.Err()
-		}
 
 		// Notify
 		data := models.NewTopMarketDataEFP(tickType)
 		data.BasisPoints = basisPoints
 		data.FormattedBasisPoints = formattedBasisPoints
-		data.TotalDividends = totalDividends
-		data.HoldDays = int(holdDays)
+		data.ImpliedFuturesPrice = impliedFuturesPrice
+		data.HoldDays = holdDays
 		data.FutureLastTradeDate = futureLastTradeDate
 		data.DividendImpact = dividendImpact
 		data.DividendsToLastTradeDate = dividendsToLastTradeDate
@@ -558,11 +745,11 @@ func (c *Client) processTickEfpMsg(msgDec *utils.MessageDecoder) error {
 	})
 
 	// Done
-	return msgDec.Err()
+	return nil
 }
 
 /*
-func (c *Client) processOrderStatusMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processOrderStatusMsg(msgDec *utils.Decoder) error {
 
 	if d.serverVersion < MIN_SERVER_VER_MARKET_CAP_PRICE {
 		msgDec.decode() // version
@@ -589,21 +776,47 @@ func (c *Client) processOrderStatusMsg(msgDec *utils.MessageDecoder) error {
 }
 */
 
-func (c *Client) processErrorMessage(msgDec *utils.MessageDecoder) error {
+func (c *Client) processErrorMessageMsg(msgDec *message.Decoder) error {
 	// Get the optional originating request ID
-	reqID := c.decodeRequestID(msgDec, true)
-	if reqID == 0 {
-		return msgDec.Err()
-	}
-	code := msgDec.Int64(false)
-	msg := msgDec.String(false)
-	advancedOrderRejectJson := msgDec.String(false)
+	reqID := msgDec.RequestID(true)
+	code := int(msgDec.Int32())
+	errMsg := msgDec.String()
+	advancedOrderRejectJson := msgDec.String()
 	ts := msgDec.EpochTimestamp(true)
 	if msgDec.Err() != nil {
 		return msgDec.Err()
 	}
+	if reqID == 0 {
+		return errors.New("invalid request ID")
+	}
 
-	// Ignore the following error codesL
+	// Done
+	return c.processErrorMessageCommon(reqID, code, errMsg, advancedOrderRejectJson, ts)
+}
+
+func (c *Client) processErrorMessageProtobuf(msgDec *protofmt.Decoder) error {
+	pb := protobuf.ErrorMessage{}
+	msgDec.Unmarshal(&pb)
+	reqID := msgDec.RequestID(pb.Id, true)
+	code := int(msgDec.Int32(pb.ErrorCode))
+	errMsg := msgDec.String(pb.ErrorMsg)
+	advancedOrderRejectJson := msgDec.String(pb.AdvancedOrderRejectJson)
+	ts := msgDec.EpochTimestamp(pb.ErrorTime, true)
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
+	if reqID == 0 {
+		return errors.New("invalid request ID")
+	}
+
+	// Done
+	return c.processErrorMessageCommon(reqID, code, errMsg, advancedOrderRejectJson, ts)
+}
+
+func (c *Client) processErrorMessageCommon(
+	reqID int32, code int, errMsg string, advancedOrderRejectJson string, ts time.Time,
+) error {
+	// Ignore the following error codes
 	if code == 300 || code == 10167 {
 		// 300 - "Can't find EId with tickerId: ###" messages because they are sent when we try to cancel a request,
 		//       and it does no longer exist.
@@ -612,16 +825,21 @@ func (c *Client) processErrorMessage(msgDec *utils.MessageDecoder) error {
 		return nil
 	}
 
+	if code == 317 {
+		// 317 - Market depth data has been RESET. Please empty deep book contents before applying any new entries.
+		return c.processMarketDepthCommon(reqID, 0, models.MarketDepthDataOperationClear, false, 0, models.DecimalZero)
+	}
+
+	// Process the response
 	if reqID > 0 {
 		c.reqMgr.withRequestWithID(reqID, func(_ interface{}) (bool, error) {
 			// Done
-
-			return false, newRequestError(ts, code, msg, advancedOrderRejectJson)
+			return false, newRequestError(ts, code, errMsg, advancedOrderRejectJson)
 		})
 	} else {
 		// Notify
 		if c.eventsHandler != nil {
-			c.eventsHandler.Error(ts, int(code), msg, advancedOrderRejectJson)
+			c.eventsHandler.Error(ts, code, errMsg, advancedOrderRejectJson)
 		}
 	}
 
@@ -630,7 +848,7 @@ func (c *Client) processErrorMessage(msgDec *utils.MessageDecoder) error {
 }
 
 /*
-func (c *Client) processOpenOrderMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processOpenOrderMsg(msgDec *utils.Decoder) error {
 
 		order := NewOrder()
 		contract := NewContract()
@@ -728,7 +946,7 @@ func (c *Client) processOpenOrderMsg(msgDec *utils.MessageDecoder) error {
 		d.wrapper.OpenOrder(order.OrderID, contract, order, orderState)
 	}
 
-func (c *Client) processAcctValueMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processAcctValueMsg(msgDec *utils.Decoder) error {
 
 		msgDec.decode() // version
 
@@ -740,7 +958,7 @@ func (c *Client) processAcctValueMsg(msgDec *utils.MessageDecoder) error {
 		d.wrapper.UpdateAccountValue(tag, val, currency, accountName)
 	}
 
-func (c *Client) processPortfolioValueMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processPortfolioValueMsg(msgDec *utils.Decoder) error {
 
 	version := msgDec.decodeInt64()
 
@@ -781,7 +999,7 @@ func (c *Client) processPortfolioValueMsg(msgDec *utils.MessageDecoder) error {
 
 }
 
-func (c *Client) processAcctUpdateTimeMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processAcctUpdateTimeMsg(msgDec *utils.Decoder) error {
 
 		msgDec.decode() // version
 
@@ -790,191 +1008,259 @@ func (c *Client) processAcctUpdateTimeMsg(msgDec *utils.MessageDecoder) error {
 		d.wrapper.UpdateAccountTime(timeStamp)
 	}
 */
-func (c *Client) processContractDataMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processContractDataMsg(msgDec *message.Decoder) error {
 	// Gets the originating request ID
-	reqID := c.decodeRequestID(msgDec, false)
-	if reqID == 0 {
+	reqID := msgDec.RequestID(false)
+	cd := models.NewContractDetails()
+	cd.Contract.Symbol = msgDec.String()
+	cd.Contract.SecType = models.NewSecurityTypeFromString(msgDec.String())
+	cd.Contract.LastTradeDateOrContractMonth = msgDec.String()
+	cd.Contract.LastTradeDate = msgDec.String()
+	cd.Contract.Strike = msgDec.FloatMax()
+	cd.Contract.Right = msgDec.String()
+	cd.Contract.Exchange = msgDec.String()
+	cd.Contract.Currency = msgDec.String()
+	cd.Contract.LocalSymbol = msgDec.String()
+	cd.MarketName = msgDec.String()
+	cd.Contract.TradingClass = msgDec.String()
+	cd.Contract.ConID = msgDec.Int32()
+	cd.MinTick = msgDec.FloatMax()
+	cd.Contract.Multiplier = msgDec.FloatMax()
+	cd.OrderTypes = msgDec.String()
+	cd.ValidExchanges = msgDec.String()
+	cd.PriceMagnifier = msgDec.Int32Max()
+	cd.UnderConID = msgDec.Int32Max()
+	cd.LongName = msgDec.EscapedString()
+	cd.Contract.PrimaryExchange = msgDec.String()
+	cd.ContractMonth = msgDec.String()
+	cd.Industry = msgDec.String()
+	cd.Category = msgDec.String()
+	cd.Subcategory = msgDec.String()
+	cd.TimeZoneID = msgDec.String()
+	cd.TradingHours = msgDec.String()
+	cd.LiquidHours = msgDec.String()
+	cd.EVRule = msgDec.String()
+	cd.EVMultiplier = msgDec.Float()
+	secIDListCount := int(msgDec.Int32())
+	if secIDListCount < 0 {
+		msgDec.SetErr(fmt.Errorf("negative security id count: %d", secIDListCount))
+		return msgDec.Err()
+	}
+	cd.SecIDList = make(models.TagValueList, 0, secIDListCount)
+	for i := 0; i < secIDListCount; i++ {
+		tagValue := models.NewTagValue()
+		tagValue.Tag = msgDec.String()
+		tagValue.Value = msgDec.String()
+		cd.SecIDList = append(cd.SecIDList, tagValue)
+	}
+	cd.AggGroup = msgDec.Int32()
+	cd.UnderSymbol = msgDec.String()
+	cd.UnderSecType = models.NewSecurityTypeFromString(msgDec.String())
+	cd.MarketRuleIDs = msgDec.String()
+	cd.RealExpirationDate = msgDec.String()
+	cd.StockType = msgDec.String()
+	cd.MinSize = models.NewDecimalMaxFromMessageDecoder(msgDec)
+	cd.SizeIncrement = models.NewDecimalMaxFromMessageDecoder(msgDec)
+	cd.SuggestedSizeIncrement = models.NewDecimalMaxFromMessageDecoder(msgDec)
+	if cd.Contract.SecType == models.SecurityTypeMutualFund {
+		cd.FundName = msgDec.String()
+		cd.FundFamily = msgDec.String()
+		cd.FundType = msgDec.String()
+		cd.FundFrontLoad = msgDec.String()
+		cd.FundBackLoad = msgDec.String()
+		cd.FundBackLoadTimeInterval = msgDec.String()
+		cd.FundManagementFee = msgDec.String()
+		cd.FundClosed = msgDec.Bool()
+		cd.FundClosedForNewInvestors = msgDec.Bool()
+		cd.FundClosedForNewMoney = msgDec.Bool()
+		cd.FundNotifyAmount = msgDec.String()
+		cd.FundMinimumInitialPurchase = msgDec.String()
+		cd.FundSubsequentMinimumPurchase = msgDec.String()
+		cd.FundBlueSkyStates = msgDec.String()
+		cd.FundBlueSkyTerritories = msgDec.String()
+		cd.FundDistributionPolicyIndicator = models.NewFundDistributionPolicyIndicatorFromString(msgDec.String())
+		cd.FundAssetType = models.NewFundAssetFromString(msgDec.String())
+	}
+	ineligibilityReasonListCount := int(msgDec.Int32())
+	if ineligibilityReasonListCount < 0 {
+		msgDec.SetErr(fmt.Errorf("negative ineligibility reason count: %d", ineligibilityReasonListCount))
+		return msgDec.Err()
+	}
+	cd.IneligibilityReasonList = make([]models.IneligibilityReason, 0, ineligibilityReasonListCount)
+	for i := 0; i < ineligibilityReasonListCount; i++ {
+		ineligibilityReason := models.IneligibilityReason{}
+		ineligibilityReason.ID = msgDec.String()
+		ineligibilityReason.Description = msgDec.String()
+		cd.IneligibilityReasonList = append(cd.IneligibilityReasonList, ineligibilityReason)
+	}
+	if msgDec.Err() != nil {
 		return msgDec.Err()
 	}
 
-	c.reqMgr.withRequestWithID(reqID, func(_resp interface{}) (bool, error) {
-		resp := _resp.(*models.ContractDetailsResponse)
-
-		cd := models.NewContractDetails()
-		cd.Contract.Symbol = msgDec.String(false)
-		cd.Contract.SecType = models.NewSecurityTypeFromString(msgDec.String(false))
-		c.readLastTradeDate(msgDec, &cd, false)
-		cd.Contract.LastTradeDate = msgDec.String(false)
-		cd.Contract.Strike = msgDec.Float64(false)
-		cd.Contract.Right = msgDec.String(false)
-		cd.Contract.Exchange = msgDec.String(false)
-		cd.Contract.Currency = msgDec.String(false)
-		cd.Contract.LocalSymbol = msgDec.String(false)
-		cd.MarketName = msgDec.String(false)
-		cd.Contract.TradingClass = msgDec.String(false)
-		cd.Contract.ConID = msgDec.Int64(false)
-		cd.MinTick = msgDec.Float64(false)
-		cd.Contract.Multiplier = msgDec.String(false)
-		cd.OrderTypes = msgDec.String(false)
-		cd.ValidExchanges = msgDec.String(false)
-		cd.PriceMagnifier = msgDec.Int64(false)
-		cd.UnderConID = msgDec.Int64(false)
-		cd.LongName = msgDec.String(true)
-		cd.Contract.PrimaryExchange = msgDec.String(false)
-		cd.ContractMonth = msgDec.String(false)
-		cd.Industry = msgDec.String(false)
-		cd.Category = msgDec.String(false)
-		cd.Subcategory = msgDec.String(false)
-		cd.TimeZoneID = msgDec.String(false)
-		cd.TradingHours = msgDec.String(false)
-		cd.LiquidHours = msgDec.String(false)
-		cd.EVRule = msgDec.String(false)
-		cd.EVMultiplier = msgDec.Int64(false)
-		secIDListCount := msgDec.Int64(false)
-		if secIDListCount < 0 {
-			msgDec.SetErr(fmt.Errorf("negative security id count: %d", secIDListCount))
-			return false, msgDec.Err()
-		}
-		cd.SecIDList = make(models.TagValueList, 0, secIDListCount)
-		for i := int64(0); i < secIDListCount; i++ {
-			tagValue := models.NewTagValue()
-			tagValue.Tag = msgDec.String(false)
-			tagValue.Value = msgDec.String(false)
-			cd.SecIDList = append(cd.SecIDList, tagValue)
-		}
-		cd.AggGroup = msgDec.Int64(false)
-		cd.UnderSymbol = msgDec.String(false)
-		cd.UnderSecType = models.NewSecurityTypeFromString(msgDec.String(false))
-		cd.MarketRuleIDs = msgDec.String(false)
-		cd.RealExpirationDate = msgDec.String(false)
-		cd.StockType = msgDec.String(false)
-		cd.MinSize = models.NewDecimalFromMessageDecoder(msgDec, false)
-		cd.SizeIncrement = models.NewDecimalFromMessageDecoder(msgDec, false)
-		cd.SuggestedSizeIncrement = models.NewDecimalFromMessageDecoder(msgDec, false)
-		if cd.Contract.SecType == models.SecurityTypeMutualFund {
-			cd.FundName = msgDec.String(false)
-			cd.FundFamily = msgDec.String(false)
-			cd.FundType = msgDec.String(false)
-			cd.FundFrontLoad = msgDec.String(false)
-			cd.FundBackLoad = msgDec.String(false)
-			cd.FundBackLoadTimeInterval = msgDec.String(false)
-			cd.FundManagementFee = msgDec.String(false)
-			cd.FundClosed = msgDec.Bool()
-			cd.FundClosedForNewInvestors = msgDec.Bool()
-			cd.FundClosedForNewMoney = msgDec.Bool()
-			cd.FundNotifyAmount = msgDec.String(false)
-			cd.FundMinimumInitialPurchase = msgDec.String(false)
-			cd.FundSubsequentMinimumPurchase = msgDec.String(false)
-			cd.FundBlueSkyStates = msgDec.String(false)
-			cd.FundBlueSkyTerritories = msgDec.String(false)
-			cd.FundDistributionPolicyIndicator = models.NewFundDistributionPolicyIndicatorFromString(msgDec.String(false))
-			cd.FundAssetType = models.NewFundAssetFromString(msgDec.String(false))
-		}
-		ineligibilityReasonListCount := msgDec.Int64(false)
-		if ineligibilityReasonListCount < 0 {
-			msgDec.SetErr(fmt.Errorf("negative ineligibility reason count: %d", ineligibilityReasonListCount))
-			return false, msgDec.Err()
-		}
-		cd.IneligibilityReasonList = make([]models.IneligibilityReason, 0, ineligibilityReasonListCount)
-		for i := int64(0); i < ineligibilityReasonListCount; i++ {
-			ineligibilityReason := models.IneligibilityReason{}
-			ineligibilityReason.ID = msgDec.String(false)
-			ineligibilityReason.Description = msgDec.String(false)
-
-			cd.IneligibilityReasonList = append(cd.IneligibilityReasonList, ineligibilityReason)
-		}
-		if msgDec.Err() != nil {
-			return false, msgDec.Err()
-		}
-
-		resp.ContractDetails = append(resp.ContractDetails, cd)
-
-		// Done
-		return false, nil
-	})
+	cd.OnContractLastTradeDateOrContractMonthUpdated(false)
 
 	// Done
-	return msgDec.Err()
+	return c.processContractDataCommon(reqID, cd)
 }
 
-func (c *Client) processBondContractDataMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processContractDataProtobuf(msgDec *protofmt.Decoder) error {
+	pb := protobuf.ContractData{}
+	msgDec.Unmarshal(&pb)
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
+	if pb.ContractDetails == nil || pb.Contract == nil {
+		return nil
+	}
 	// Gets the originating request ID
-	reqID := c.decodeRequestID(msgDec, false)
-	if reqID == 0 {
+	reqID := msgDec.RequestID(pb.ReqId, false)
+	cd := models.NewContractDetailsFromProtobufDecoder(msgDec, pb.ContractDetails, pb.Contract)
+	if msgDec.Err() != nil {
 		return msgDec.Err()
 	}
 
-	c.reqMgr.withRequestWithID(reqID, func(_resp interface{}) (bool, error) {
-		resp := _resp.(*models.ContractDetailsResponse)
-
-		cd := models.NewContractDetails()
-		cd.Contract = *models.NewContract()
-		cd.Contract.Symbol = msgDec.String(false)
-		cd.Contract.SecType = models.NewSecurityTypeFromString(msgDec.String(false))
-		cd.Cusip = msgDec.String(false)
-		cd.Coupon = msgDec.Float64(false)
-		c.readLastTradeDate(msgDec, &cd, true)
-		cd.IssueDate = msgDec.String(false)
-		cd.Ratings = msgDec.String(false)
-		cd.BondType = msgDec.String(false)
-		cd.CouponType = msgDec.String(false)
-		cd.Convertible = msgDec.Bool()
-		cd.Callable = msgDec.Bool()
-		cd.Putable = msgDec.Bool()
-		cd.DescAppend = msgDec.String(false)
-		cd.Contract.Exchange = msgDec.String(false)
-		cd.Contract.Currency = msgDec.String(false)
-		cd.MarketName = msgDec.String(false)
-		cd.Contract.TradingClass = msgDec.String(false)
-		cd.Contract.ConID = msgDec.Int64(false)
-		cd.MinTick = msgDec.Float64(false)
-		cd.OrderTypes = msgDec.String(false)
-		cd.ValidExchanges = msgDec.String(false)
-		cd.NextOptionDate = msgDec.String(false)
-		cd.NextOptionType = msgDec.String(false)
-		cd.NextOptionPartial = msgDec.Bool()
-		cd.Notes = msgDec.String(false)
-		cd.LongName = msgDec.String(false)
-		cd.TimeZoneID = msgDec.String(false)
-		cd.TradingHours = msgDec.String(false)
-		cd.LiquidHours = msgDec.String(false)
-		cd.EVRule = msgDec.String(false)
-		cd.EVMultiplier = msgDec.Int64(false)
-		secIDListCount := msgDec.Int64(false)
-		if secIDListCount < 0 {
-			msgDec.SetErr(fmt.Errorf("negative security id count: %d", secIDListCount))
-			return false, msgDec.Err()
-		}
-		cd.SecIDList = make(models.TagValueList, 0, secIDListCount)
-		var i int64
-		for i = 0; i < secIDListCount; i++ {
-			tagValue := models.NewTagValue()
-			tagValue.Tag = msgDec.String(false)
-			tagValue.Value = msgDec.String(false)
-			cd.SecIDList = append(cd.SecIDList, tagValue)
-		}
-		cd.AggGroup = msgDec.Int64(false)
-		cd.MarketRuleIDs = msgDec.String(false)
-		cd.MinSize = models.NewDecimalFromMessageDecoder(msgDec, false)
-		cd.SizeIncrement = models.NewDecimalFromMessageDecoder(msgDec, false)
-		cd.SuggestedSizeIncrement = models.NewDecimalFromMessageDecoder(msgDec, false)
-		cd.IneligibilityReasonList = make([]models.IneligibilityReason, 0)
-		if msgDec.Err() != nil {
-			return false, msgDec.Err()
-		}
-
-		resp.ContractDetails = append(resp.ContractDetails, cd)
-
-		// Done
-		return false, nil
-	})
+	cd.OnContractLastTradeDateOrContractMonthUpdated(false)
 
 	// Done
-	return msgDec.Err()
+	return c.processContractDataCommon(reqID, cd)
 }
 
 /*
-func (c *Client) processExecutionDetailsMsg(msgDec *utils.MessageDecoder) error {
+		private void processContractDataMsgProtoBuf() throws IOException {
+		    byte[] byteArray = readByteArray();
+
+		    ContractDataProto.ContractData contractDataProto = ContractDataProto.ContractData.parseFrom(byteArray);
+		    m_EWrapper.contractDataProtoBuf(contractDataProto);
+
+		    int reqId = contractDataProto.hasReqId() ? contractDataProto.getReqId() : EClientErrors.NO_VALID_ID;
+
+		    if (!contractDataProto.hasContract() || !contractDataProto.hasContractDetails()) {
+		        return;
+		    }
+		    // set contract details fields
+		    ContractDetails contractDetails = EDecoderUtils.decodeContractDetails(contractDataProto.getContract(), contractDataProto.getContractDetails(), false);
+
+		    m_EWrapper.contractDetails(reqId, contractDetails);
+		}
+
+	    private void processBondContractDataMsgProtoBuf() throws IOException {
+	        byte[] byteArray = readByteArray();
+
+	        ContractDataProto.ContractData contractDataProto = ContractDataProto.ContractData.parseFrom(byteArray);
+	        m_EWrapper.bondContractDataProtoBuf(contractDataProto);
+
+	        int reqId = contractDataProto.hasReqId() ? contractDataProto.getReqId() : EClientErrors.NO_VALID_ID;
+
+	        if (!contractDataProto.hasContract() || !contractDataProto.hasContractDetails()) {
+	            return;
+	        }
+	        // set contract details fields
+	        ContractDetails contractDetails = EDecoderUtils.decodeContractDetails(contractDataProto.getContract(), contractDataProto.getContractDetails(), true);
+
+	        m_EWrapper.bondContractDetails(reqId, contractDetails);
+	    }
+*/
+func (c *Client) processBondContractDataMsg(msgDec *message.Decoder) error {
+	// Gets the originating request ID
+	reqID := msgDec.RequestID(false)
+	cd := models.NewContractDetails()
+	cd.Contract.Symbol = msgDec.String()
+	cd.Contract.SecType = models.NewSecurityTypeFromString(msgDec.String())
+	cd.Cusip = msgDec.String()
+	cd.Coupon = msgDec.Float()
+	cd.Contract.LastTradeDateOrContractMonth = msgDec.String()
+	cd.IssueDate = msgDec.String()
+	cd.Ratings = msgDec.String()
+	cd.BondType = msgDec.String()
+	cd.CouponType = msgDec.String()
+	cd.Convertible = msgDec.Bool()
+	cd.Callable = msgDec.Bool()
+	cd.Puttable = msgDec.Bool()
+	cd.DescAppend = msgDec.String()
+	cd.Contract.Exchange = msgDec.String()
+	cd.Contract.Currency = msgDec.String()
+	cd.MarketName = msgDec.String()
+	cd.Contract.TradingClass = msgDec.String()
+	cd.Contract.ConID = msgDec.Int32()
+	cd.MinTick = msgDec.FloatMax()
+	cd.OrderTypes = msgDec.String()
+	cd.ValidExchanges = msgDec.String()
+	cd.NextOptionDate = msgDec.String()
+	cd.NextOptionType = msgDec.String()
+	cd.NextOptionPartial = msgDec.Bool()
+	cd.BondNotes = msgDec.String()
+	cd.LongName = msgDec.String()
+	cd.TimeZoneID = msgDec.String()
+	cd.TradingHours = msgDec.String()
+	cd.LiquidHours = msgDec.String()
+	cd.EVRule = msgDec.String()
+	cd.EVMultiplier = msgDec.Float()
+	secIDListCount := int(msgDec.Int32())
+	if secIDListCount < 0 {
+		msgDec.SetErr(fmt.Errorf("negative security id count: %d", secIDListCount))
+		return msgDec.Err()
+	}
+	cd.SecIDList = make(models.TagValueList, 0, secIDListCount)
+	for i := 0; i < secIDListCount; i++ {
+		tagValue := models.NewTagValue()
+		tagValue.Tag = msgDec.String()
+		tagValue.Value = msgDec.String()
+		cd.SecIDList = append(cd.SecIDList, tagValue)
+	}
+	cd.AggGroup = msgDec.Int32()
+	cd.MarketRuleIDs = msgDec.String()
+	cd.MinSize = models.NewDecimalMaxFromMessageDecoder(msgDec)
+	cd.SizeIncrement = models.NewDecimalMaxFromMessageDecoder(msgDec)
+	cd.SuggestedSizeIncrement = models.NewDecimalMaxFromMessageDecoder(msgDec)
+	cd.IneligibilityReasonList = make([]models.IneligibilityReason, 0)
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
+
+	cd.OnContractLastTradeDateOrContractMonthUpdated(true)
+
+	// Done
+	return c.processContractDataCommon(reqID, cd)
+}
+
+func (c *Client) processBondContractDataProtobuf(msgDec *protofmt.Decoder) error {
+	pb := protobuf.ContractData{}
+	msgDec.Unmarshal(&pb)
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
+	if pb.ContractDetails == nil || pb.Contract == nil {
+		return nil
+	}
+	// Gets the originating request ID
+	reqID := msgDec.RequestID(pb.ReqId, false)
+	cd := models.NewContractDetailsFromProtobufDecoder(msgDec, pb.ContractDetails, pb.Contract)
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
+
+	cd.OnContractLastTradeDateOrContractMonthUpdated(true)
+
+	// Done
+	return c.processContractDataCommon(reqID, cd)
+}
+
+func (c *Client) processContractDataCommon(reqID int32, cd *models.ContractDetails) error {
+	c.reqMgr.withRequestWithID(reqID, func(_resp interface{}) (bool, error) {
+		resp := _resp.(*models.ContractDetailsResponse)
+
+		resp.ContractDetails = append(resp.ContractDetails, cd)
+
+		// Done
+		return false, nil
+	})
+
+	// Done
+	return nil
+}
+
+/*
+func (c *Client) processExecutionDetailsMsg(msgDec *utils.Decoder) error {
 
 	version := d.serverVersion
 	if d.serverVersion < MIN_SERVER_VER_LAST_LIQUIDITY {
@@ -1056,7 +1342,7 @@ func (c *Client) processExecutionDetailsMsg(msgDec *utils.MessageDecoder) error 
 	d.wrapper.ExecDetails(reqID, contract, execution)
 }
 
-func (c *Client) processExecutionDetailsMsgProtoBuf(msgDec *utils.MessageDecoder) error {
+func (c *Client) processExecutionDetailsMsgProtoBuf(msgDec *utils.Decoder) error {
 
 	var executionDetailsProto protobuf.ExecutionDetails
 	err := proto.Unmarshal(msgDec.Bytes(), &executionDetailsProto)
@@ -1080,35 +1366,75 @@ func (c *Client) processExecutionDetailsMsgProtoBuf(msgDec *utils.MessageDecoder
 }
 */
 
-func (c *Client) processMarketDepthMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processMarketDepthMsg(msgDec *message.Decoder) error {
 	msgDec.Skip() // version
 	// Gets the originating ticker ID
-	tickerID := c.decodeRequestID(msgDec, false)
-	if tickerID == 0 {
+	tickerID := msgDec.RequestID(false)
+	position := int(msgDec.Int32())
+	if position < 0 {
+		msgDec.SetErr(fmt.Errorf("invalid position: %d", position))
+		return msgDec.Err()
+	}
+	operation := int(msgDec.Int32())
+	bidSide := msgDec.Int32() == 0
+	price := msgDec.Float()
+	size := models.NewDecimalFromMessageDecoder(msgDec)
+	if msgDec.Err() != nil {
 		return msgDec.Err()
 	}
 
+	// Done
+	return c.processMarketDepthCommon(
+		tickerID, position, models.MarketDepthDataOperation(operation), bidSide, price, size,
+	)
+}
+
+func (c *Client) processMarketDepthProtobuf(msgDec *protofmt.Decoder) error {
+	pb := protobuf.MarketDepth{}
+	msgDec.Unmarshal(&pb)
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
+	if pb.MarketDepthData == nil {
+		return nil
+	}
+	// Gets the originating ticker ID
+	tickerID := msgDec.RequestID(pb.ReqId, false)
+	position := int(msgDec.Int32(pb.MarketDepthData.Position))
+	if position < 0 {
+		msgDec.SetErr(fmt.Errorf("invalid position: %d", position))
+		return msgDec.Err()
+	}
+	operation := int(msgDec.Int32(pb.MarketDepthData.Operation))
+	side := msgDec.Int32(pb.MarketDepthData.Side)
+	price := msgDec.Float(pb.MarketDepthData.Price)
+	size := models.NewDecimalFromProtobufDecoder(msgDec, pb.MarketDepthData.Size)
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
+
+	// Done
+	return c.processMarketDepthCommon(
+		tickerID, position, models.MarketDepthDataOperation(operation), side == 0, price, size,
+	)
+}
+
+func (c *Client) processMarketDepthCommon(
+	tickerID int32, position int, operation models.MarketDepthDataOperation, bidSide bool, price float64, size models.Decimal,
+) error {
 	c.reqMgr.withRequestWithID(tickerID, func(_resp interface{}) (bool, error) {
 		resp := _resp.(*models.MarketDepthDataResponse)
 
-		position := msgDec.Int64(false)
-		if position < 0 || position >= int64(resp.Book.Size) {
-			return false, msgDec.Err()
-		}
-		operation := msgDec.Int64(false)
-		side := msgDec.Int64(false)
-		price := msgDec.Float64(false)
-		size := models.NewDecimalFromMessageDecoder(msgDec, false)
-		if msgDec.Err() != nil {
-			return false, msgDec.Err()
+		if position >= resp.Book.Size {
+			return false, nil // Ignore
 		}
 
 		// Notify
-		data := &implDepthMarketData{
-			position:  int(position),
-			operation: int(operation),
-			bidSide:   side == 0,
-			entry: models.DepthMarketBookEntry{
+		data := models.MarketDepthData{
+			Position:  position,
+			Operation: operation,
+			BidSide:   bidSide,
+			Entry: models.DepthMarketBookEntry{
 				Price: price,
 				Size:  size,
 			},
@@ -1120,93 +1446,66 @@ func (c *Client) processMarketDepthMsg(msgDec *utils.MessageDecoder) error {
 	})
 
 	// Done
-	return msgDec.Err()
+	return nil
 }
 
-func (c *Client) processMarketDepthL2Msg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processMarketDepthL2Msg(msgDec *message.Decoder) error {
 	msgDec.Skip() // version
 	// Gets the originating ticker ID
-	tickerID := c.decodeRequestID(msgDec, false)
-	if tickerID == 0 {
+	tickerID := msgDec.RequestID(false)
+	position := int(msgDec.Int32())
+	if position < 0 {
+		msgDec.SetErr(fmt.Errorf("invalid position: %d", position))
+		return msgDec.Err()
+	}
+	_ = msgDec.String() // Market maker
+	operation := int(msgDec.Int32())
+	bidSide := msgDec.Int32() == 0
+	price := msgDec.Float()
+	size := models.NewDecimalFromMessageDecoder(msgDec)
+	_ = msgDec.Bool() // Is Smart Depth
+	if msgDec.Err() != nil {
 		return msgDec.Err()
 	}
 
-	c.reqMgr.withRequestWithID(tickerID, func(_resp interface{}) (bool, error) {
-		resp := _resp.(*models.MarketDepthDataResponse)
-
-		position := msgDec.Int64(false)
-		if position < 0 || position >= int64(resp.Book.Size) {
-			return false, msgDec.Err()
-		}
-		_ = msgDec.String(false) // Market maker
-		operation := msgDec.Int64(false)
-		side := msgDec.Int64(false)
-		price := msgDec.Float64(false)
-		size := models.NewDecimalFromMessageDecoder(msgDec, false)
-		_ = msgDec.Bool() // Is Smart Depth
-		if msgDec.Err() != nil {
-			return false, msgDec.Err()
-		}
-
-		// Notify
-		data := &implDepthMarketData{
-			position:  int(position),
-			operation: int(operation),
-			bidSide:   side == 0,
-			entry: models.DepthMarketBookEntry{
-				Price: price,
-				Size:  size,
-			},
-		}
-		resp.Channel <- data
-
-		// Done
-		return false, nil
-	})
-
 	// Done
-	return msgDec.Err()
+	return c.processMarketDepthCommon(
+		tickerID, position, models.MarketDepthDataOperation(operation), bidSide, price, size,
+	)
 }
 
-func (idmd *implDepthMarketData) UpdateBook(book *models.MarketDepthBook) {
-	var bookSide *[]models.DepthMarketBookEntry
-
-	if idmd.bidSide {
-		bookSide = &book.Bids
-	} else {
-		bookSide = &book.Asks
+func (c *Client) processMarketDepthL2Protobuf(msgDec *protofmt.Decoder) error {
+	pb := protobuf.MarketDepthL2{}
+	msgDec.Unmarshal(&pb)
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
+	if pb.MarketDepthData == nil {
+		return nil
+	}
+	// Gets the originating ticker ID
+	tickerID := msgDec.RequestID(pb.ReqId, false)
+	position := int(msgDec.Int32(pb.MarketDepthData.Position))
+	if position < 0 {
+		msgDec.SetErr(fmt.Errorf("invalid position: %d", position))
+		return msgDec.Err()
+	}
+	operation := int(msgDec.Int32(pb.MarketDepthData.Operation))
+	side := msgDec.Int32(pb.MarketDepthData.Side)
+	price := msgDec.Float(pb.MarketDepthData.Price)
+	size := models.NewDecimalFromProtobufDecoder(msgDec, pb.MarketDepthData.Size)
+	if msgDec.Err() != nil {
+		return msgDec.Err()
 	}
 
-	// Execute operation
-	c := cap(*bookSide)
-	l := len(*bookSide)
-	switch idmd.operation {
-	case 0: // Insert
-		if idmd.position < c {
-			book.Asks = (*bookSide)[:l+1]
-			copy((*bookSide)[idmd.position+1:], (*bookSide)[idmd.position:l])
-		} else {
-			copy((*bookSide)[idmd.position+1:], (*bookSide)[idmd.position:l-1])
-		}
-		(*bookSide)[idmd.position] = idmd.entry
-
-	case 1: // Update
-		if idmd.position > l {
-			*bookSide = (*bookSide)[:idmd.position+1]
-		}
-		(*bookSide)[idmd.position] = idmd.entry
-
-	case 2: // Delete
-		if idmd.position < l {
-			copy((*bookSide)[idmd.position:], (*bookSide)[idmd.position+1:])
-			(*bookSide)[l-1] = models.DepthMarketBookEntry{}
-			*bookSide = (*bookSide)[:l-1]
-		}
-	}
+	// Done
+	return c.processMarketDepthCommon(
+		tickerID, position, models.MarketDepthDataOperation(operation), side == 0, price, size,
+	)
 }
 
 /*
-func (c *Client) processNewsBulletinsMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processNewsBulletinsMsg(msgDec *utils.Decoder) error {
 
 	msgDec.decode() // version
 
@@ -1219,28 +1518,49 @@ func (c *Client) processNewsBulletinsMsg(msgDec *utils.MessageDecoder) error {
 }
 */
 
-func (c *Client) processManagedAccountsMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processManagedAccountsMsg(msgDec *message.Decoder) error {
+	msgDec.Skip() // version
+	accountsNames := msgDec.String()
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
+
+	accounts := strings.Split(accountsNames, ",")
+
+	// Done
+	return c.processManagedAccountsCommon(accounts)
+}
+
+func (c *Client) processManagedAccountsProtobuf(msgDec *protofmt.Decoder) error {
+	pb := protobuf.ManagedAccounts{}
+	msgDec.Unmarshal(&pb)
+	accountsNames := msgDec.String(pb.AccountsList)
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
+
+	accounts := strings.Split(accountsNames, ",")
+
+	// Done
+	return c.processManagedAccountsCommon(accounts)
+}
+
+func (c *Client) processManagedAccountsCommon(accounts []string) error {
 	c.reqMgr.withRequestWithoutID(common.REQ_MANAGED_ACCTS, func(_resp interface{}) error {
 		resp := _resp.(*models.ManagedAccountsResponse)
 
-		msgDec.Skip() // version
-		accountsNames := msgDec.String(false)
-		if msgDec.Err() != nil {
-			return msgDec.Err()
-		}
-
-		resp.Accounts = strings.Split(accountsNames, ",")
+		resp.Accounts = accounts
 
 		// Done
 		return nil
 	})
 
 	// Done
-	return msgDec.Err()
+	return nil
 }
 
 /*
-func (c *Client) processReceiveFaMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processReceiveFaMsg(msgDec *utils.Decoder) error {
 
 		msgDec.decode() // version
 
@@ -1251,91 +1571,112 @@ func (c *Client) processReceiveFaMsg(msgDec *utils.MessageDecoder) error {
 	}
 */
 
-func (c *Client) decodeRequestID(msgDec *utils.MessageDecoder, canBeOptional bool) int32 {
-	reqID := msgDec.Int64(false)
-	if msgDec.Err() != nil {
-		return 0
-	}
-	if canBeOptional && reqID <= 0 {
-		return -1
-	}
-	if reqID < 1 || reqID > math.MaxInt32 {
-		msgDec.SetErr(fmt.Errorf("received invalid request id: %d", reqID))
-		return 0
-	}
-	return int32(reqID)
-}
-
-func (c *Client) processHistoricalDataMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processHistoricalDataMsg(msgDec *message.Decoder) error {
 	// Gets the originating request ID
-	reqID := c.decodeRequestID(msgDec, false)
-	if reqID == 0 {
+	reqID := msgDec.RequestID(false)
+	barsCount := int(msgDec.Int32())
+	if barsCount < 0 {
+		msgDec.SetErr(fmt.Errorf("negative bars count: %d", barsCount))
+		return msgDec.Err()
+	}
+	bars := make([]models.HistoricalDataBar, 0, barsCount)
+	for i := 0; i < barsCount; i++ {
+		bar := models.NewHistoricalDataBar()
+		// Epoch because the request of historical data has the date format equal to 2.
+		bar.Date = msgDec.EpochTimestamp(false)
+		bar.Open = msgDec.Float()
+		bar.High = msgDec.Float()
+		bar.Low = msgDec.Float()
+		bar.Close = msgDec.Float()
+		bar.Volume = models.NewDecimalMaxFromMessageDecoder(msgDec)
+		bar.Wap = models.NewDecimalMaxFromMessageDecoder(msgDec)
+		bar.Count = msgDec.Int32()
+
+		bars = append(bars, bar)
+	}
+	if msgDec.Err() != nil {
 		return msgDec.Err()
 	}
 
+	// Done
+	return c.processHistoricalDataCommon(reqID, bars)
+}
+
+func (c *Client) processHistoricalDataProtobuf(msgDec *protofmt.Decoder) error {
+	pb := protobuf.HistoricalData{}
+	msgDec.Unmarshal(&pb)
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
+	if pb.HistoricalDataBars == nil {
+		return nil
+	}
+	// Gets the originating request ID
+	reqID := msgDec.RequestID(pb.ReqId, false)
+	barsCount := len(pb.HistoricalDataBars)
+	bars := make([]models.HistoricalDataBar, 0, barsCount)
+	for i := 0; i < barsCount; i++ {
+		bar := models.NewHistoricalDataBarFromProtobufDecoder(msgDec, pb.HistoricalDataBars[i])
+
+		bars = append(bars, bar)
+	}
+
+	// Done
+	return c.processHistoricalDataCommon(reqID, bars)
+}
+
+func (c *Client) processHistoricalDataCommon(reqID int32, bars []models.HistoricalDataBar) error {
 	c.reqMgr.withRequestWithID(reqID, func(_resp interface{}) (bool, error) {
 		resp := _resp.(*models.HistoricalDataResponse)
 
-		barsCount := msgDec.Int64(false)
-		if msgDec.Err() != nil {
-			return false, msgDec.Err()
-		}
-		if barsCount < 0 {
-			msgDec.SetErr(fmt.Errorf("negative bars count: %d", barsCount))
-			return false, msgDec.Err()
-		}
-
-		for i := int64(0); i < barsCount; i++ {
-			bar := models.NewBar()
-			// Epoch because the request of historical data has the date format equal to 2.
-			bar.Date = msgDec.EpochTimestamp(false)
-			bar.Open = msgDec.Float64(false)
-			bar.High = msgDec.Float64(false)
-			bar.Low = msgDec.Float64(false)
-			bar.Close = msgDec.Float64(false)
-			bar.Volume = models.NewDecimalFromMessageDecoder(msgDec, false)
-			bar.Wap = models.NewDecimalFromMessageDecoder(msgDec, false)
-			bar.BarCount = msgDec.Int64(false)
-
-			resp.Bars = append(resp.Bars, bar)
-		}
-
-		if msgDec.Err() != nil {
-			return false, msgDec.Err()
-		}
+		resp.Bars = append(resp.Bars, bars...)
 
 		// Done
 		return false, nil
 	})
 
 	// Done
-	return msgDec.Err()
+	return nil
 }
 
-func (c *Client) processHistoricalDataEndMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processHistoricalDataEndMsg(msgDec *message.Decoder) error {
 	// Gets the originating request ID
-	reqID := c.decodeRequestID(msgDec, false)
-	if reqID == 0 {
+	reqID := msgDec.RequestID(false)
+	msgDec.Skip()
+	msgDec.Skip()
+	if msgDec.Err() != nil {
 		return msgDec.Err()
 	}
 
-	c.reqMgr.withRequestWithID(reqID, func(_ interface{}) (bool, error) {
-		msgDec.Skip()
-		msgDec.Skip()
-		if msgDec.Err() != nil {
-			return false, msgDec.Err()
-		}
+	// Done
+	return c.processHistoricalDataEndCommon(reqID)
+}
 
-		// Done
+func (c *Client) processHistoricalDataEndProtobuf(msgDec *protofmt.Decoder) error {
+	pb := protobuf.HistoricalDataEnd{}
+	msgDec.Unmarshal(&pb)
+	// Gets the originating ticker ID
+	tickerID := msgDec.RequestID(pb.ReqId, false)
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
+
+	// Done
+	return c.processHistoricalDataEndCommon(tickerID)
+}
+
+func (c *Client) processHistoricalDataEndCommon(tickerID int32) error {
+	c.reqMgr.withRequestWithID(tickerID, func(_ interface{}) (bool, error) {
+		// Signal end of snapshot
 		return true, nil
 	})
 
 	// Done
-	return msgDec.Err()
+	return nil
 }
 
 /*
-func (c *Client) processScannerDataMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processScannerDataMsg(msgDec *utils.Decoder) error {
 
 		msgDec.Skip() // version
 
@@ -1372,7 +1713,7 @@ func (c *Client) processScannerDataMsg(msgDec *utils.MessageDecoder) error {
 		d.wrapper.ScannerDataEnd(reqID)
 	}
 
-func (c *Client) processScannerParametersMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processScannerParametersMsg(msgDec *utils.Decoder) error {
 
 		msgDec.decode() // version
 
@@ -1381,7 +1722,7 @@ func (c *Client) processScannerParametersMsg(msgDec *utils.MessageDecoder) error
 		d.wrapper.ScannerParameters(xml)
 	}
 
-func (c *Client) processRealTimeBarsMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processRealTimeBarsMsg(msgDec *utils.Decoder) error {
 
 	msgDec.decode() // version
 
@@ -1400,7 +1741,7 @@ func (c *Client) processRealTimeBarsMsg(msgDec *utils.MessageDecoder) error {
 
 }
 
-func (c *Client) processFundamentalDataMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processFundamentalDataMsg(msgDec *utils.Decoder) error {
 
 		msgDec.decode() // version
 
@@ -1410,25 +1751,43 @@ func (c *Client) processFundamentalDataMsg(msgDec *utils.MessageDecoder) error {
 		d.wrapper.FundamentalData(reqID, data)
 	}
 */
-func (c *Client) processContractDataEndMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processContractDataEndMsg(msgDec *message.Decoder) error {
 	msgDec.Skip() // version
-
 	// Gets the originating request ID
-	reqID := c.decodeRequestID(msgDec, false)
-	if reqID == 0 {
+	reqID := msgDec.RequestID(false)
+	if msgDec.Err() != nil {
 		return msgDec.Err()
 	}
 
+	// Done
+	return c.processContractDataEndCommon(reqID)
+}
+
+func (c *Client) processContractDataEndProtobuf(msgDec *protofmt.Decoder) error {
+	pb := protobuf.ContractDataEnd{}
+	msgDec.Unmarshal(&pb)
+	// Gets the originating request ID
+	reqID := msgDec.RequestID(pb.ReqId, false)
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
+
+	// Done
+	return c.processContractDataEndCommon(reqID)
+}
+
+func (c *Client) processContractDataEndCommon(reqID int32) error {
 	c.reqMgr.withRequestWithID(reqID, func(_ interface{}) (bool, error) {
 		// Done
 		return true, nil
 	})
 
 	// Done
-	return msgDec.Err()
+	return nil
 }
 
-func (c *Client) processOpenOrdersEndMsg(msgDec *utils.MessageDecoder) error {
+/*
+func (c *Client) processOpenOrdersEndMsg(msgDec *utils.Decoder) error {
 	msgDec.Skip() // version
 	if msgDec.Err() != nil {
 		return msgDec.Err()
@@ -1441,8 +1800,7 @@ func (c *Client) processOpenOrdersEndMsg(msgDec *utils.MessageDecoder) error {
 	return nil
 }
 
-/*
-func (c *Client) processAcctDownloadEndMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processAcctDownloadEndMsg(msgDec *utils.Decoder) error {
 
 		msgDec.decode() // version
 
@@ -1451,7 +1809,7 @@ func (c *Client) processAcctDownloadEndMsg(msgDec *utils.MessageDecoder) error {
 		d.wrapper.AccountDownloadEnd(accountName)
 	}
 
-func (c *Client) processExecutionDetailsEndMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processExecutionDetailsEndMsg(msgDec *utils.Decoder) error {
 
 		msgDec.decode() // version
 
@@ -1460,7 +1818,7 @@ func (c *Client) processExecutionDetailsEndMsg(msgDec *utils.MessageDecoder) err
 		d.wrapper.ExecDetailsEnd(reqID)
 	}
 
-func (c *Client) processExecutionDetailsEndMsgProtoBuf(msgDec *utils.MessageDecoder) error {
+func (c *Client) processExecutionDetailsEndMsgProtoBuf(msgDec *utils.Decoder) error {
 
 		var executionDetailsEndProto protobuf.ExecutionDetailsEnd
 		err := proto.Unmarshal(msgDec.Bytes(), &executionDetailsEndProto)
@@ -1473,7 +1831,7 @@ func (c *Client) processExecutionDetailsEndMsgProtoBuf(msgDec *utils.MessageDeco
 		d.wrapper.ExecDetailsEnd(reqID)
 	}
 
-func (c *Client) processDeltaNeutralValidationMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processDeltaNeutralValidationMsg(msgDec *utils.Decoder) error {
 
 		msgDec.decode() // version
 
@@ -1489,25 +1847,43 @@ func (c *Client) processDeltaNeutralValidationMsg(msgDec *utils.MessageDecoder) 
 	}
 */
 
-func (c *Client) processTickSnapshotEndMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processTickSnapshotEndMsg(msgDec *message.Decoder) error {
 	msgDec.Skip() // version
 	// Gets the originating ticker ID
-	tickerID := c.decodeRequestID(msgDec, false)
-	if tickerID == 0 {
+	tickerID := msgDec.RequestID(false)
+	if msgDec.Err() != nil {
 		return msgDec.Err()
 	}
 
+	// Done
+	return c.processTickSnapshotEndCommon(tickerID)
+}
+
+func (c *Client) processTickSnapshotEndProtobuf(msgDec *protofmt.Decoder) error {
+	pb := protobuf.TickSnapshotEnd{}
+	msgDec.Unmarshal(&pb)
+	// Gets the originating ticker ID
+	tickerID := msgDec.RequestID(pb.ReqId, false)
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
+
+	// Done
+	return c.processTickSnapshotEndCommon(tickerID)
+}
+
+func (c *Client) processTickSnapshotEndCommon(tickerID int32) error {
 	c.reqMgr.withRequestWithID(tickerID, func(_ interface{}) (bool, error) {
 		// Signal end of snapshot
 		return true, nil
 	})
 
 	// Done
-	return msgDec.Err()
+	return nil
 }
 
 /*
-func (c *Client) processCommissionAndFeesReportMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processCommissionAndFeesReportMsg(msgDec *utils.Decoder) error {
 
 		msgDec.decode() // version
 
@@ -1522,7 +1898,7 @@ func (c *Client) processCommissionAndFeesReportMsg(msgDec *utils.MessageDecoder)
 		d.wrapper.CommissionAndFeesReport(commissionAndFeesReport)
 	}
 
-func (c *Client) processPositionDataMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processPositionDataMsg(msgDec *utils.Decoder) error {
 
 		version := msgDec.decodeInt64()
 
@@ -1559,7 +1935,7 @@ func (c *Client) processPositionEndMsg(*msgDecfer) {
 		d.wrapper.PositionEnd()
 	}
 
-func (c *Client) processAccountSummaryMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processAccountSummaryMsg(msgDec *utils.Decoder) error {
 
 		msgDec.decode() // version
 
@@ -1572,7 +1948,7 @@ func (c *Client) processAccountSummaryMsg(msgDec *utils.MessageDecoder) error {
 		d.wrapper.AccountSummary(reqID, account, tag, value, currency)
 	}
 
-func (c *Client) processAccountSummaryEndMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processAccountSummaryEndMsg(msgDec *utils.Decoder) error {
 
 		msgDec.decode() // version
 
@@ -1581,7 +1957,7 @@ func (c *Client) processAccountSummaryEndMsg(msgDec *utils.MessageDecoder) error
 		d.wrapper.AccountSummaryEnd(reqID)
 	}
 
-func (c *Client) processVerifyMessageApiMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processVerifyMessageApiMsg(msgDec *utils.Decoder) error {
 
 		msgDec.decode() // version
 
@@ -1590,7 +1966,7 @@ func (c *Client) processVerifyMessageApiMsg(msgDec *utils.MessageDecoder) error 
 		d.wrapper.VerifyMessageAPI(apiData)
 	}
 
-func (c *Client) processVerifyCompletedMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processVerifyCompletedMsg(msgDec *utils.Decoder) error {
 
 		msgDec.decode() // version
 
@@ -1600,7 +1976,7 @@ func (c *Client) processVerifyCompletedMsg(msgDec *utils.MessageDecoder) error {
 		d.wrapper.VerifyCompleted(isSuccessful, errorText)
 	}
 
-func (c *Client) processDisplayGroupListMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processDisplayGroupListMsg(msgDec *utils.Decoder) error {
 
 		msgDec.decode() // version
 
@@ -1610,7 +1986,7 @@ func (c *Client) processDisplayGroupListMsg(msgDec *utils.MessageDecoder) error 
 		d.wrapper.DisplayGroupList(reqID, groups)
 	}
 
-func (c *Client) processDisplayGroupUpdatedMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processDisplayGroupUpdatedMsg(msgDec *utils.Decoder) error {
 
 		msgDec.decode() // version
 
@@ -1620,7 +1996,7 @@ func (c *Client) processDisplayGroupUpdatedMsg(msgDec *utils.MessageDecoder) err
 		d.wrapper.DisplayGroupUpdated(reqID, contractInfo)
 	}
 
-func (c *Client) processVerifyAndAuthMessageApiMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processVerifyAndAuthMessageApiMsg(msgDec *utils.Decoder) error {
 
 		msgDec.decode() // version
 
@@ -1630,7 +2006,7 @@ func (c *Client) processVerifyAndAuthMessageApiMsg(msgDec *utils.MessageDecoder)
 		d.wrapper.VerifyAndAuthMessageAPI(apiData, xyzChallange)
 	}
 
-func (c *Client) processVerifyAndAuthCompletedMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processVerifyAndAuthCompletedMsg(msgDec *utils.Decoder) error {
 
 		msgDec.decode() // version
 
@@ -1640,7 +2016,7 @@ func (c *Client) processVerifyAndAuthCompletedMsg(msgDec *utils.MessageDecoder) 
 		d.wrapper.VerifyAndAuthCompleted(isSuccessful, errorText)
 	}
 
-func (c *Client) processPositionMultiMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processPositionMultiMsg(msgDec *utils.Decoder) error {
 
 		msgDec.decode() // version
 
@@ -1669,7 +2045,7 @@ func (c *Client) processPositionMultiMsg(msgDec *utils.MessageDecoder) error {
 		d.wrapper.PositionMulti(reqID, account, modelCode, contract, pos, avgCost)
 	}
 
-func (c *Client) processPositionMultiEndMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processPositionMultiEndMsg(msgDec *utils.Decoder) error {
 
 		msgDec.decode() // version
 
@@ -1678,7 +2054,7 @@ func (c *Client) processPositionMultiEndMsg(msgDec *utils.MessageDecoder) error 
 		d.wrapper.PositionMultiEnd(reqID)
 	}
 
-func (c *Client) processAccountUpdateMultiMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processAccountUpdateMultiMsg(msgDec *utils.Decoder) error {
 
 		msgDec.decode() // version
 
@@ -1692,7 +2068,7 @@ func (c *Client) processAccountUpdateMultiMsg(msgDec *utils.MessageDecoder) erro
 		d.wrapper.AccountUpdateMulti(reqID, account, modelCode, key, value, currency)
 	}
 
-func (c *Client) processAccountUpdateMultiEndMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processAccountUpdateMultiEndMsg(msgDec *utils.Decoder) error {
 
 		msgDec.decode() // version
 
@@ -1701,7 +2077,7 @@ func (c *Client) processAccountUpdateMultiEndMsg(msgDec *utils.MessageDecoder) e
 		d.wrapper.AccountUpdateMultiEnd(reqID)
 	}
 
-func (c *Client) processSecurityDefinitionOptionalParameterMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processSecurityDefinitionOptionalParameterMsg(msgDec *utils.Decoder) error {
 
 	reqID := msgDec.decodeInt64()
 
@@ -1729,14 +2105,14 @@ func (c *Client) processSecurityDefinitionOptionalParameterMsg(msgDec *utils.Mes
 
 }
 
-func (c *Client) processSecurityDefinitionOptionalParameterEndMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processSecurityDefinitionOptionalParameterEndMsg(msgDec *utils.Decoder) error {
 
 		reqID := msgDec.decodeInt64()
 
 		d.wrapper.SecurityDefinitionOptionParameterEnd(reqID)
 	}
 
-func (c *Client) processSoftDollarTiersMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processSoftDollarTiersMsg(msgDec *utils.Decoder) error {
 
 		reqID := msgDec.decodeInt64()
 
@@ -1754,7 +2130,7 @@ func (c *Client) processSoftDollarTiersMsg(msgDec *utils.MessageDecoder) error {
 		d.wrapper.SoftDollarTiers(reqID, tiers)
 	}
 
-func (c *Client) processFamilyCodesMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processFamilyCodesMsg(msgDec *utils.Decoder) error {
 
 		familyCodesCount := msgDec.decodeInt64()
 		familyCodes := make([]FamilyCode, 0, familyCodesCount)
@@ -1770,59 +2146,61 @@ func (c *Client) processFamilyCodesMsg(msgDec *utils.MessageDecoder) error {
 	}
 */
 
-func (c *Client) processSymbolSamplesMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processSymbolSamplesMsg(msgDec *message.Decoder) error {
 	// Gets the originating request ID
-	reqID := c.decodeRequestID(msgDec, false)
-	if reqID == 0 {
+	reqID := msgDec.RequestID(false)
+	contractDescriptionsCount := int(msgDec.Int32())
+	if contractDescriptionsCount < 0 {
+		msgDec.SetErr(fmt.Errorf("negative contract descriptions count: %d", contractDescriptionsCount))
+		return msgDec.Err()
+	}
+	cds := make([]*models.ContractDescription, 0, contractDescriptionsCount)
+	for i := 0; i < contractDescriptionsCount; i++ {
+		cd := models.NewContractDescription()
+		cd.Contract.ConID = msgDec.Int32()
+		cd.Contract.Symbol = msgDec.String()
+		cd.Contract.SecType = models.NewSecurityTypeFromString(msgDec.String())
+		cd.Contract.PrimaryExchange = msgDec.String()
+		cd.Contract.Currency = msgDec.String()
+		derivativeSecTypesCount := int(msgDec.Int32())
+		if derivativeSecTypesCount < 0 {
+			msgDec.SetErr(fmt.Errorf("negative derivative security types count: %d", derivativeSecTypesCount))
+			return msgDec.Err()
+		}
+		cd.DerivativeSecTypes = make([]models.SecurityType, 0, derivativeSecTypesCount)
+		for j := 0; j < derivativeSecTypesCount; j++ {
+			derivativeSecType := models.NewSecurityTypeFromString(msgDec.String())
+			cd.DerivativeSecTypes = append(cd.DerivativeSecTypes, derivativeSecType)
+		}
+		cd.Contract.Description = msgDec.String()
+		cd.Contract.IssuerID = msgDec.String()
+
+		cds = append(cds, cd)
+	}
+	if msgDec.Err() != nil {
 		return msgDec.Err()
 	}
 
+	// Done
+	return c.processSymbolSamplesCommon(reqID, cds)
+}
+
+func (c *Client) processSymbolSamplesCommon(reqID int32, cds []*models.ContractDescription) error {
 	c.reqMgr.withRequestWithID(reqID, func(_resp interface{}) (bool, error) {
 		resp := _resp.(*models.MatchingSymbolsResponse)
 
-		contractDescriptionsCount := msgDec.Int64(false)
-		if msgDec.Err() != nil {
-			return false, msgDec.Err()
-		}
-		if contractDescriptionsCount < 0 {
-			msgDec.SetErr(fmt.Errorf("negative contract descriptions count: %d", contractDescriptionsCount))
-			return false, msgDec.Err()
-		}
-
-		for i := int64(0); i < contractDescriptionsCount; i++ {
-			cd := models.NewContractDescription()
-			cd.Contract.ConID = msgDec.Int64(false)
-			cd.Contract.Symbol = msgDec.String(false)
-			cd.Contract.SecType = models.NewSecurityTypeFromString(msgDec.String(false))
-			cd.Contract.PrimaryExchange = msgDec.String(false)
-			cd.Contract.Currency = msgDec.String(false)
-			derivativeSecTypesCount := msgDec.Int64(false)
-			if derivativeSecTypesCount < 0 {
-				msgDec.SetErr(fmt.Errorf("negative derivative security types count: %d", derivativeSecTypesCount))
-				return false, msgDec.Err()
-			}
-			cd.DerivativeSecTypes = make([]models.SecurityType, 0, derivativeSecTypesCount)
-			for j := int64(0); j < derivativeSecTypesCount; j++ {
-				derivativeSecType := models.NewSecurityTypeFromString(msgDec.String(false))
-
-				cd.DerivativeSecTypes = append(cd.DerivativeSecTypes, derivativeSecType)
-			}
-			cd.Contract.Description = msgDec.String(false)
-			cd.Contract.IssuerID = msgDec.String(false)
-
-			resp.ContractDescriptions = append(resp.ContractDescriptions, cd)
-		}
+		resp.ContractDescriptions = append(resp.ContractDescriptions, cds...)
 
 		// Done
 		return true, nil
 	})
 
 	// Done
-	return msgDec.Err()
+	return nil
 }
 
 /*
-func (c *Client) processMktDepthExchangesMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processMktDepthExchangesMsg(msgDec *utils.Decoder) error {
 
 	depthMktDataDescriptionsCount := msgDec.decodeInt64()
 	depthMktDataDescriptions := make([]DepthMktDataDescription, 0, depthMktDataDescriptionsCount)
@@ -1846,7 +2224,7 @@ func (c *Client) processMktDepthExchangesMsg(msgDec *utils.MessageDecoder) error
 	d.wrapper.MktDepthExchanges(depthMktDataDescriptions)
 }
 
-func (c *Client) processTickNewsMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processTickNewsMsg(msgDec *utils.Decoder) error {
 
 	tickerID := msgDec.decodeInt64()
 
@@ -1859,7 +2237,7 @@ func (c *Client) processTickNewsMsg(msgDec *utils.MessageDecoder) error {
 	d.wrapper.TickNews(tickerID, timeStamp, providerCode, articleID, headline, extraData)
 }
 
-func (c *Client) processTickReqParamsMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processTickReqParamsMsg(msgDec *utils.Decoder) error {
 
 	tickerID := msgDec.decodeInt64()
 
@@ -1870,7 +2248,7 @@ func (c *Client) processTickReqParamsMsg(msgDec *utils.MessageDecoder) error {
 	d.wrapper.TickReqParams(tickerID, minTick, bboExchange, snapshotPermissions)
 }
 
-func (c *Client) processSmartComponentsMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processSmartComponentsMsg(msgDec *utils.Decoder) error {
 
 	reqID := msgDec.decodeInt64()
 
@@ -1888,7 +2266,7 @@ func (c *Client) processSmartComponentsMsg(msgDec *utils.MessageDecoder) error {
 	d.wrapper.SmartComponents(reqID, smartComponents)
 }
 
-func (c *Client) processNewsProvidersMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processNewsProvidersMsg(msgDec *utils.Decoder) error {
 
 	newsProvidersCount := msgDec.decodeInt64()
 	newsProviders := make([]NewsProvider, 0, newsProvidersCount)
@@ -1903,7 +2281,7 @@ func (c *Client) processNewsProvidersMsg(msgDec *utils.MessageDecoder) error {
 	d.wrapper.NewsProviders(newsProviders)
 }
 
-func (c *Client) processNewsArticleMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processNewsArticleMsg(msgDec *utils.Decoder) error {
 
 	reqID := msgDec.decodeInt64()
 
@@ -1913,7 +2291,7 @@ func (c *Client) processNewsArticleMsg(msgDec *utils.MessageDecoder) error {
 	d.wrapper.NewsArticle(reqID, articleType, articleText)
 }
 
-func (c *Client) processHistoricalNewsMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processHistoricalNewsMsg(msgDec *utils.Decoder) error {
 
 	requestID := msgDec.decodeInt64()
 
@@ -1925,7 +2303,7 @@ func (c *Client) processHistoricalNewsMsg(msgDec *utils.MessageDecoder) error {
 	d.wrapper.HistoricalNews(requestID, time, providerCode, articleID, headline)
 }
 
-func (c *Client) processHistoricalNewsEndMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processHistoricalNewsEndMsg(msgDec *utils.Decoder) error {
 
 	requestID := msgDec.decodeInt64()
 
@@ -1935,22 +2313,48 @@ func (c *Client) processHistoricalNewsEndMsg(msgDec *utils.MessageDecoder) error
 }
 */
 
-func (c *Client) processHeadTimestampMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processHeadTimestampMsg(msgDec *message.Decoder) error {
 	// Gets the originating ticker ID
-	reqID := c.decodeRequestID(msgDec, false)
-	if reqID == 0 {
+	reqID := msgDec.RequestID(false)
+	ts := msgDec.EpochTimestamp(false)
+	if msgDec.Err() != nil {
 		return msgDec.Err()
 	}
 
-	_ = msgDec.String(false)
-	// d.wrapper.HeadTimestamp(reqID, headTimestamp)
+	// Done
+	return c.processHeadTimestampCommon(reqID, ts)
+}
+
+func (c *Client) processHeadTimestampProtobuf(msgDec *protofmt.Decoder) error {
+	pb := protobuf.HeadTimestamp{}
+	msgDec.Unmarshal(&pb)
+	// Gets the originating request ID
+	reqID := msgDec.RequestID(pb.ReqId, false)
+	ts := msgDec.EpochTimestampFromString(pb.HeadTimestamp, false)
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
 
 	// Done
-	return msgDec.Err()
+	return c.processHeadTimestampCommon(reqID, ts)
+}
+
+func (c *Client) processHeadTimestampCommon(reqID int32, ts time.Time) error {
+	c.reqMgr.withRequestWithID(reqID, func(_resp interface{}) (bool, error) {
+		resp := _resp.(*models.HeadTimestampResponse)
+
+		resp.Timestamp = ts
+
+		// Done
+		return true, nil
+	})
+
+	// Done
+	return nil
 }
 
 /*
-func (c *Client) processHistogramDataMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processHistogramDataMsg(msgDec *utils.Decoder) error {
 
 	reqID := msgDec.decodeInt64()
 
@@ -1967,7 +2371,7 @@ func (c *Client) processHistogramDataMsg(msgDec *utils.MessageDecoder) error {
 	d.wrapper.HistogramData(reqID, data)
 }
 
-func (c *Client) processRerouteMktDataReqMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processRerouteMktDataReqMsg(msgDec *utils.Decoder) error {
 
 	reqID := msgDec.decodeInt64()
 
@@ -1977,7 +2381,7 @@ func (c *Client) processRerouteMktDataReqMsg(msgDec *utils.MessageDecoder) error
 	d.wrapper.RerouteMktDataReq(reqID, conID, exchange)
 }
 
-func (c *Client) processRerouteMktDepthReqMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processRerouteMktDepthReqMsg(msgDec *utils.Decoder) error {
 
 	reqID := msgDec.decodeInt64()
 
@@ -1987,7 +2391,7 @@ func (c *Client) processRerouteMktDepthReqMsg(msgDec *utils.MessageDecoder) erro
 	d.wrapper.RerouteMktDepthReq(reqID, conID, exchange)
 }
 
-func (c *Client) processMarketRuleMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processMarketRuleMsg(msgDec *utils.Decoder) error {
 
 	marketRuleID := msgDec.decodeInt64()
 
@@ -2005,7 +2409,7 @@ func (c *Client) processMarketRuleMsg(msgDec *utils.MessageDecoder) error {
 	d.wrapper.MarketRule(marketRuleID, priceIncrements)
 }
 
-func (c *Client) processPnLMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processPnLMsg(msgDec *utils.Decoder) error {
 
 	reqID := msgDec.decodeInt64()
 
@@ -2024,7 +2428,7 @@ func (c *Client) processPnLMsg(msgDec *utils.MessageDecoder) error {
 	d.wrapper.Pnl(reqID, dailyPnL, unrealizedPnL, realizedPnL)
 }
 
-func (c *Client) processPnLSingleMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processPnLSingleMsg(msgDec *utils.Decoder) error {
 
 	reqID := msgDec.decodeInt64()
 
@@ -2047,144 +2451,195 @@ func (c *Client) processPnLSingleMsg(msgDec *utils.MessageDecoder) error {
 }
 */
 
-func (c *Client) processHistoricalTicks(msgDec *utils.MessageDecoder) error {
+func (c *Client) processHistoricalTicksMsg(msgDec *message.Decoder) error {
 	// Gets the originating request ID
-	reqID := c.decodeRequestID(msgDec, false)
-	if reqID == 0 {
+	reqID := msgDec.RequestID(false)
+	ticksCount := int(msgDec.Int32())
+	if ticksCount < 0 {
+		msgDec.SetErr(fmt.Errorf("negative ticks count: %d", ticksCount))
+		return msgDec.Err()
+	}
+	ticks := make([]models.HistoricalTick, ticksCount)
+	for idx := 0; idx < ticksCount; idx++ {
+		ht := models.NewHistoricalTick()
+		ht.Time = msgDec.EpochTimestamp(false)
+		msgDec.Skip()
+		ht.Price = msgDec.Float()
+		ht.Size = models.NewDecimalMaxFromMessageDecoder(msgDec)
+		ticks[idx] = ht
+	}
+	done := msgDec.Bool()
+	if msgDec.Err() != nil {
 		return msgDec.Err()
 	}
 
-	c.reqMgr.withRequestWithID(reqID, func(_resp interface{}) (bool, error) {
-		resp := _resp.(*models.HistoricalTicksResponse)
-
-		ticksCount := msgDec.Int64(false)
-		if msgDec.Err() != nil {
-			return false, msgDec.Err()
-		}
-		if ticksCount < 0 {
-			msgDec.SetErr(fmt.Errorf("negative ticks count: %d", ticksCount))
-			return false, msgDec.Err()
-		}
-
-		for i := int64(0); i < ticksCount; i++ {
-			historicalTick := models.NewHistoricalTick()
-			historicalTick.Time = msgDec.EpochTimestamp(false)
-			msgDec.Skip()
-			historicalTick.Price = msgDec.Float64(false)
-			historicalTick.Size = models.NewDecimalFromMessageDecoder(msgDec, false)
-
-			resp.Ticks = append(resp.Ticks, historicalTick)
-		}
-
-		done := msgDec.Bool()
-		if msgDec.Err() != nil {
-			return false, msgDec.Err()
-		}
-
-		// Done
-		return done, nil
-	})
-
 	// Done
-	return msgDec.Err()
+	return c.processHistoricalTicksCommon(reqID, ticks, done)
 }
 
-func (c *Client) processHistoricalTicksBidAsk(msgDec *utils.MessageDecoder) error {
+func (c *Client) processHistoricalTicksProtobuf(msgDec *protofmt.Decoder) error {
+	pb := protobuf.HistoricalTicks{}
+	msgDec.Unmarshal(&pb)
 	// Gets the originating request ID
-	reqID := c.decodeRequestID(msgDec, false)
-	if reqID == 0 {
+	reqID := msgDec.RequestID(pb.ReqId, false)
+	ticksCount := len(pb.HistoricalTicks)
+	ticks := make([]models.HistoricalTick, ticksCount)
+	for idx := range pb.HistoricalTicks {
+		ticks[idx] = models.NewHistoricalTickFromProtobufDecoder(msgDec, pb.HistoricalTicks[idx])
+	}
+	done := msgDec.Bool(pb.IsDone)
+	if msgDec.Err() != nil {
 		return msgDec.Err()
 	}
 
-	c.reqMgr.withRequestWithID(reqID, func(_resp interface{}) (bool, error) {
-		resp := _resp.(*models.HistoricalTicksResponse)
-
-		ticksCount := msgDec.Int64(false)
-		if msgDec.Err() != nil {
-			return false, msgDec.Err()
-		}
-		if ticksCount < 0 {
-			msgDec.SetErr(fmt.Errorf("negative ticks count: %d", ticksCount))
-			return false, msgDec.Err()
-		}
-
-		for i := int64(0); i < ticksCount; i++ {
-			historicalTickBidAsk := models.NewHistoricalTickBidAsk()
-			historicalTickBidAsk.Time = msgDec.EpochTimestamp(false)
-			mask := msgDec.Int64(false)
-			historicalTickBidAsk.TickAttribBidAsk = models.NewTickAttribBidAsk()
-			historicalTickBidAsk.TickAttribBidAsk.AskPastHigh = mask&1 != 0
-			historicalTickBidAsk.TickAttribBidAsk.BidPastLow = mask&2 != 0
-			historicalTickBidAsk.PriceBid = msgDec.Float64(false)
-			historicalTickBidAsk.PriceAsk = msgDec.Float64(false)
-			historicalTickBidAsk.SizeBid = models.NewDecimalFromMessageDecoder(msgDec, false)
-			historicalTickBidAsk.SizeAsk = models.NewDecimalFromMessageDecoder(msgDec, false)
-
-			resp.TicksBidAsk = append(resp.TicksBidAsk, historicalTickBidAsk)
-		}
-
-		done := msgDec.Bool()
-		if msgDec.Err() != nil {
-			return false, msgDec.Err()
-		}
-
-		// Done
-		return done, nil
-	})
-
 	// Done
-	return msgDec.Err()
+	return c.processHistoricalTicksCommon(reqID, ticks, done)
 }
 
-func (c *Client) processHistoricalTicksLast(msgDec *utils.MessageDecoder) error {
-	// Gets the originating request ID
-	reqID := c.decodeRequestID(msgDec, false)
-	if reqID == 0 {
-		return msgDec.Err()
-	}
-
+func (c *Client) processHistoricalTicksCommon(reqID int32, ticks []models.HistoricalTick, done bool) error {
 	c.reqMgr.withRequestWithID(reqID, func(_resp interface{}) (bool, error) {
 		resp := _resp.(*models.HistoricalTicksResponse)
 
-		ticksCount := msgDec.Int64(false)
-		if msgDec.Err() != nil {
-			return false, msgDec.Err()
-		}
-		if ticksCount < 0 {
-			msgDec.SetErr(fmt.Errorf("negative ticks count: %d", ticksCount))
-			return false, msgDec.Err()
-		}
-
-		for i := int64(0); i < ticksCount; i++ {
-			historicalTickLast := models.NewHistoricalTickLast()
-			historicalTickLast.Time = msgDec.EpochTimestamp(false)
-			mask := msgDec.Int64(false)
-			historicalTickLast.TickAttribLast = models.NewTickAttribLast()
-			historicalTickLast.TickAttribLast.PastLimit = mask&1 != 0
-			historicalTickLast.TickAttribLast.Unreported = mask&2 != 0
-			historicalTickLast.Price = msgDec.Float64(false)
-			historicalTickLast.Size = models.NewDecimalFromMessageDecoder(msgDec, false)
-			historicalTickLast.Exchange = msgDec.String(false)
-			historicalTickLast.SpecialConditions = msgDec.String(false)
-
-			resp.TicksLast = append(resp.TicksLast, historicalTickLast)
-		}
-
-		done := msgDec.Bool()
-		if msgDec.Err() != nil {
-			return false, msgDec.Err()
-		}
+		resp.Ticks = append(resp.Ticks, ticks...)
 
 		// Done
 		return done, nil
 	})
 
 	// Done
-	return msgDec.Err()
+	return nil
+}
+
+func (c *Client) processHistoricalTicksBidAskMsg(msgDec *message.Decoder) error {
+	// Gets the originating request ID
+	reqID := msgDec.RequestID(false)
+	ticksCount := int(msgDec.Int32())
+	if ticksCount < 0 {
+		msgDec.SetErr(fmt.Errorf("negative ticks count: %d", ticksCount))
+		return msgDec.Err()
+	}
+	ticks := make([]models.HistoricalTickBidAsk, ticksCount)
+	for idx := 0; idx < ticksCount; idx++ {
+		htba := models.NewHistoricalTickBidAsk()
+		htba.Time = msgDec.EpochTimestamp(false)
+		mask := msgDec.Int32()
+		htba.TickAttribBidAsk = models.NewTickAttribBidAsk()
+		htba.TickAttribBidAsk.AskPastHigh = mask&1 != 0
+		htba.TickAttribBidAsk.BidPastLow = mask&2 != 0
+		htba.PriceBid = msgDec.Float()
+		htba.PriceAsk = msgDec.Float()
+		htba.SizeBid = models.NewDecimalMaxFromMessageDecoder(msgDec)
+		htba.SizeAsk = models.NewDecimalMaxFromMessageDecoder(msgDec)
+		ticks[idx] = htba
+	}
+	done := msgDec.Bool()
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
+
+	// Done
+	return c.processHistoricalTicksBidAskCommon(reqID, ticks, done)
+}
+
+func (c *Client) processHistoricalTicksBidAskProtobuf(msgDec *protofmt.Decoder) error {
+	pb := protobuf.HistoricalTicksBidAsk{}
+	msgDec.Unmarshal(&pb)
+	// Gets the originating request ID
+	reqID := msgDec.RequestID(pb.ReqId, false)
+	ticksCount := len(pb.HistoricalTicksBidAsk)
+	ticks := make([]models.HistoricalTickBidAsk, ticksCount)
+	for idx := range pb.HistoricalTicksBidAsk {
+		ticks[idx] = models.NewHistoricalTickBidAskFromProtobufDecoder(msgDec, pb.HistoricalTicksBidAsk[idx])
+	}
+	done := msgDec.Bool(pb.IsDone)
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
+
+	// Done
+	return c.processHistoricalTicksBidAskCommon(reqID, ticks, done)
+}
+
+func (c *Client) processHistoricalTicksBidAskCommon(reqID int32, ticks []models.HistoricalTickBidAsk, done bool) error {
+	c.reqMgr.withRequestWithID(reqID, func(_resp interface{}) (bool, error) {
+		resp := _resp.(*models.HistoricalTicksResponse)
+
+		resp.TicksBidAsk = append(resp.TicksBidAsk, ticks...)
+
+		// Done
+		return done, nil
+	})
+
+	// Done
+	return nil
+}
+
+func (c *Client) processHistoricalTicksLastMsg(msgDec *message.Decoder) error {
+	// Gets the originating request ID
+	reqID := msgDec.RequestID(false)
+	ticksCount := int(msgDec.Int32())
+	if ticksCount < 0 {
+		msgDec.SetErr(fmt.Errorf("negative ticks count: %d", ticksCount))
+		return msgDec.Err()
+	}
+	ticks := make([]models.HistoricalTickLast, ticksCount)
+	for idx := 0; idx < ticksCount; idx++ {
+		htl := models.NewHistoricalTickLast()
+		htl.Time = msgDec.EpochTimestamp(false)
+		mask := msgDec.Int32()
+		htl.TickAttribLast = models.NewTickAttribLast()
+		htl.TickAttribLast.PastLimit = mask&1 != 0
+		htl.TickAttribLast.Unreported = mask&2 != 0
+		htl.Price = msgDec.Float()
+		htl.Size = models.NewDecimalMaxFromMessageDecoder(msgDec)
+		htl.Exchange = msgDec.String()
+		htl.SpecialConditions = msgDec.String()
+		ticks[idx] = htl
+	}
+	done := msgDec.Bool()
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
+
+	// Done
+	return c.processHistoricalTicksLastCommon(reqID, ticks, done)
+}
+
+func (c *Client) processHistoricalTicksLastProtobuf(msgDec *protofmt.Decoder) error {
+	pb := protobuf.HistoricalTicksLast{}
+	msgDec.Unmarshal(&pb)
+	// Gets the originating request ID
+	reqID := msgDec.RequestID(pb.ReqId, false)
+	ticksCount := len(pb.HistoricalTicksLast)
+	ticks := make([]models.HistoricalTickLast, ticksCount)
+	for idx := range pb.HistoricalTicksLast {
+		ticks[idx] = models.NewHistoricalTickLastFromProtobufDecoder(msgDec, pb.HistoricalTicksLast[idx])
+	}
+	done := msgDec.Bool(pb.IsDone)
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
+
+	// Done
+	return c.processHistoricalTicksLastCommon(reqID, ticks, done)
+}
+
+func (c *Client) processHistoricalTicksLastCommon(reqID int32, ticks []models.HistoricalTickLast, done bool) error {
+	c.reqMgr.withRequestWithID(reqID, func(_resp interface{}) (bool, error) {
+		resp := _resp.(*models.HistoricalTicksResponse)
+
+		resp.TicksLast = append(resp.TicksLast, ticks...)
+
+		// Done
+		return done, nil
+	})
+
+	// Done
+	return nil
 }
 
 /*
-func (c *Client) processTickByTickDataMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processTickByTickDataMsg(msgDec *utils.Decoder) error {
 
 		reqID := msgDec.decodeInt64()
 
@@ -2227,7 +2682,7 @@ func (c *Client) processTickByTickDataMsg(msgDec *utils.MessageDecoder) error {
 		}
 	}
 
-func (c *Client) processOrderBoundMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processOrderBoundMsg(msgDec *utils.Decoder) error {
 
 		permID := msgDec.decodeInt64()
 		clientId := msgDec.decodeInt64()
@@ -2236,7 +2691,7 @@ func (c *Client) processOrderBoundMsg(msgDec *utils.MessageDecoder) error {
 		d.wrapper.OrderBound(permID, clientId, orderId)
 	}
 
-func (c *Client) processCompletedOrderMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processCompletedOrderMsg(msgDec *utils.Decoder) error {
 
 		order := NewOrder()
 		contract := NewContract()
@@ -2320,7 +2775,7 @@ func (c *Client) processCompletedOrderMsg(msgDec *utils.MessageDecoder) error {
 		d.wrapper.CompletedOrdersEnd()
 	}
 
-func (c *Client) processReplaceFAEndMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processReplaceFAEndMsg(msgDec *utils.Decoder) error {
 
 		reqID := msgDec.decodeInt64()
 		text := msgDec.decodeString()
@@ -2328,7 +2783,7 @@ func (c *Client) processReplaceFAEndMsg(msgDec *utils.MessageDecoder) error {
 		d.wrapper.ReplaceFAEnd(reqID, text)
 	}
 
-func (c *Client) processWshMetaData(msgDec *utils.MessageDecoder) error {
+func (c *Client) processWshMetaData(msgDec *utils.Decoder) error {
 
 		reqID := msgDec.decodeInt64()
 		dataJSON := msgDec.decodeString()
@@ -2336,7 +2791,7 @@ func (c *Client) processWshMetaData(msgDec *utils.MessageDecoder) error {
 		d.wrapper.WshMetaData(reqID, dataJSON)
 	}
 
-func (c *Client) processWshEventData(msgDec *utils.MessageDecoder) error {
+func (c *Client) processWshEventData(msgDec *utils.Decoder) error {
 
 		reqID := msgDec.decodeInt64()
 		dataJSON := msgDec.decodeString()
@@ -2344,7 +2799,7 @@ func (c *Client) processWshEventData(msgDec *utils.MessageDecoder) error {
 		d.wrapper.WshEventData(reqID, dataJSON)
 	}
 
-func (c *Client) processHistoricalSchedule(msgDec *utils.MessageDecoder) error {
+func (c *Client) processHistoricalSchedule(msgDec *utils.Decoder) error {
 
 		reqID := msgDec.decodeInt64()
 		startDateTime := msgDec.decodeString()
@@ -2364,7 +2819,7 @@ func (c *Client) processHistoricalSchedule(msgDec *utils.MessageDecoder) error {
 		d.wrapper.HistoricalSchedule(reqID, startDateTime, endDateTime, timeZone, sessions)
 	}
 
-func (c *Client) processUserInfo(msgDec *utils.MessageDecoder) error {
+func (c *Client) processUserInfo(msgDec *utils.Decoder) error {
 
 		reqID := msgDec.decodeInt64()
 		whiteBrandingId := msgDec.decodeString()
@@ -2373,46 +2828,25 @@ func (c *Client) processUserInfo(msgDec *utils.MessageDecoder) error {
 	}
 */
 
-func (c *Client) processCurrentTimeInMillisMsg(msgDec *utils.MessageDecoder) error {
+func (c *Client) processCurrentTimeInMillisMsg(msgDec *message.Decoder) error {
+	ts := msgDec.EpochTimestamp(true)
+	if msgDec.Err() != nil {
+		return msgDec.Err()
+	}
+
+	return c.processCurrentTimeInMillisCommon(ts)
+}
+
+func (c *Client) processCurrentTimeInMillisCommon(ts time.Time) error {
 	c.reqMgr.withRequestWithoutID(common.REQ_CURRENT_TIME_IN_MILLIS, func(_resp interface{}) error {
 		resp := _resp.(*models.CurrentTimeResponse)
 
-		resp.CurrentTime = msgDec.EpochTimestamp(true)
-		if msgDec.Err() != nil {
-			return msgDec.Err()
-		}
+		resp.CurrentTime = ts
 
 		// Done
 		return nil
 	})
 
 	// Done
-	return msgDec.Err()
-}
-
-func (c *Client) readLastTradeDate(msgDec *utils.MessageDecoder, contract *models.ContractDetails, isBond bool) {
-	lastTradeDateOrContractMonth := msgDec.String(false) // YYYYMM or YYYYMMDD
-	if len(lastTradeDateOrContractMonth) > 0 {
-		var split []string
-
-		if strings.Contains(lastTradeDateOrContractMonth, "-") {
-			split = strings.Split(lastTradeDateOrContractMonth, "-")
-		} else {
-			split = strings.Split(lastTradeDateOrContractMonth, " ")
-		}
-		if len(split) > 0 {
-			if isBond {
-				contract.Maturity = split[0]
-			} else {
-				contract.Contract.LastTradeDateOrContractMonth = split[0]
-			}
-
-			if len(split) > 1 {
-				contract.LastTradeTime = split[1]
-			}
-			if isBond && len(split) > 2 {
-				contract.TimeZoneID = split[2]
-			}
-		}
-	}
+	return nil
 }

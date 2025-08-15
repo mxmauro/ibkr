@@ -6,3 +6,8 @@ plugins:
     opt: paths=source_relative
 inputs:
   - directory: .
+managed:
+  enabled: true
+  override:
+    - file_option: go_package
+      value: .;protobuf

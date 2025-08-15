@@ -18,7 +18,6 @@ func NewFundDistributionPolicyIndicatorFromString(fundIndicator string) FundDist
 		return FundDistributionPolicyIndicatorAccumulationFund
 	case string(FundDistributionPolicyIndicatorIncomeFund):
 		return FundDistributionPolicyIndicatorIncomeFund
-	default:
-		return FundDistributionPolicyIndicatorNone
 	}
+	return FundDistributionPolicyIndicatorNone
 }

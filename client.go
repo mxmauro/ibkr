@@ -14,7 +14,10 @@ import (
 	"github.com/mxmauro/ibkr/common"
 	"github.com/mxmauro/ibkr/connection"
 	"github.com/mxmauro/ibkr/models"
+	"github.com/mxmauro/ibkr/proto/protobuf"
 	"github.com/mxmauro/ibkr/utils"
+	"github.com/mxmauro/ibkr/utils/encoders/message"
+	"github.com/mxmauro/ibkr/utils/encoders/protofmt"
 	"github.com/mxmauro/resetevent"
 )
 
@@ -53,7 +56,7 @@ type Options struct {
 
 // -----------------------------------------------------------------------------
 
-// NewClient creates  new client object and establishes a connection to the given server.
+// NewClient creates a new client object and establishes a connection to the given server.
 func NewClient(ctx context.Context, opts Options) (*Client, error) {
 	var tzOffset time.Duration
 	var err error
@@ -141,9 +144,23 @@ func (c *Client) IsConnected() bool {
 	return connected
 }
 
-// ConnectedCh returns a channel that is closed if the connection goes down.
+// ConnectedCh returns a channel closed if the connection goes down.
 func (c *Client) ConnectedCh() <-chan struct{} {
 	return c.isDisconnectedEv.WaitCh()
+}
+
+// ServerVersion returns the version of the server.
+func (c *Client) ServerVersion() int {
+	version := 0
+	if c.rp.Acquire() {
+		select {
+		case <-c.isDisconnectedEv.WaitCh():
+		default:
+			version = int(c.serverVersion)
+		}
+		c.rp.Release()
+	}
+	return version
 }
 
 // RequestCurrentTime asks the current system time on the server side.
@@ -163,8 +180,11 @@ func (c *Client) RequestCurrentTime(ctx context.Context) (time.Time, error) {
 	})
 
 	// Build the message to send
-	msgEnc := utils.NewMessageEncoder().
+	msgEnc := message.NewEncoder().
 		RawUInt32(common.REQ_CURRENT_TIME_IN_MILLIS)
+	if msgEnc.Err() != nil {
+		return time.Time{}, msgEnc.Err()
+	}
 
 	// Send it
 	err := c.sendRequest(msgEnc.Bytes(), req)
@@ -200,10 +220,21 @@ func (c *Client) RequestManagedAccounts(ctx context.Context) ([]string, error) {
 	})
 
 	// Build the message to send
-	const VERSION = 1
-	msgEnc := utils.NewMessageEncoder().
-		RawUInt32(common.REQ_MANAGED_ACCTS).
-		Int(VERSION)
+	var msgEnc *message.Encoder
+	if c.isProtoBufAvailable(common.REQ_MANAGED_ACCTS) {
+		pb := protobuf.ManagedAccountsRequest{}
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.REQ_MANAGED_ACCTS + common.PROTOBUF_MSG_ID).
+			Proto(&pb)
+	} else {
+		const VERSION = 1
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.REQ_MANAGED_ACCTS).
+			Int(VERSION)
+	}
+	if msgEnc.Err() != nil {
+		return nil, msgEnc.Err()
+	}
 
 	// Send it
 	err := c.sendRequest(msgEnc.Bytes(), req)
@@ -263,7 +294,7 @@ func (c *Client) RequestHistoricalData(ctx context.Context, opts models.Historic
 
 	// Create the new request and response holder
 	resp := &models.HistoricalDataResponse{
-		Bars: make([]models.Bar, 0),
+		Bars: make([]models.HistoricalDataBar, 0),
 	}
 	req := c.createRequest(RequestOptions{
 		Type:     RequestTypeRequestWithID,
@@ -272,30 +303,45 @@ func (c *Client) RequestHistoricalData(ctx context.Context, opts models.Historic
 	})
 
 	// Build the message to send
-	msgEnc := utils.NewMessageEncoder().Reserve(20).
-		RawUInt32(common.REQ_HISTORICAL_DATA).
-		RequestID(req.ID()).
-		Marshal(opts.Contract).
-		Bool(opts.Contract.IncludeExpired).
-		String(opts.EndDate.Format("20060102-15:04:05")).
-		String(opts.BarSize.String()).
-		String(strconv.Itoa(opts.Duration) + " " + opts.DurationUnit.String()).
-		Bool(opts.OnlyRegularTradingHours).
-		String(opts.WhatToShow.String()).
-		Int(2) // Return epoch timestamp
-
-	if opts.Contract.SecType == models.SecurityTypePair {
-		msgEnc.Int(len(opts.Contract.ComboLegs))
-		for _, comboLeg := range opts.Contract.ComboLegs {
-			msgEnc.Int64(comboLeg.ConID, false).
-				Int64(comboLeg.Ratio, false).
-				String(comboLeg.Action).
-				String(comboLeg.Exchange)
+	var msgEnc *message.Encoder
+	if c.isProtoBufAvailable(common.REQ_HISTORICAL_DATA) {
+		pb := protobuf.HistoricalDataRequest{
+			ReqId:          protofmt.Int32(req.ID()),
+			Contract:       opts.Contract.Proto(nil),
+			EndDateTime:    protofmt.String(opts.EndDate.Format("20060102-15:04:05")),
+			BarSizeSetting: protofmt.String(opts.BarSize.String()),
+			Duration:       protofmt.String(strconv.Itoa(opts.Duration) + " " + opts.DurationUnit.String()),
+			UseRTH:         protofmt.Bool(opts.OnlyRegularTradingHours),
+			WhatToShow:     protofmt.String(opts.WhatToShow.String()),
+			FormatDate:     protofmt.Int32(2), // Return epoch timestamp
+			KeepUpToDate:   protofmt.Bool(false),
 		}
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.REQ_HISTORICAL_DATA + common.PROTOBUF_MSG_ID).
+			Proto(&pb)
+	} else {
+		msgEnc = message.NewEncoder().Reserve(20).
+			RawUInt32(common.REQ_HISTORICAL_DATA).
+			RequestID(req.ID()).
+			Marshal(opts.Contract, 2).
+			String(opts.EndDate.Format("20060102-15:04:05")).
+			String(opts.BarSize.String()).
+			String(strconv.Itoa(opts.Duration) + " " + opts.DurationUnit.String()).
+			Bool(opts.OnlyRegularTradingHours).
+			String(opts.WhatToShow.String()).
+			Int(2) // Return epoch timestamp
+		if opts.Contract.SecType == models.SecurityTypePair {
+			msgEnc.Int(len(opts.Contract.ComboLegs))
+			for _, comboLeg := range opts.Contract.ComboLegs {
+				msgEnc.Marshal(comboLeg, 1)
+			}
+		}
+		msgEnc.Bool(false). // KeepUpToDate
+					Marshal(&models.TagValueList{}, 1)
 	}
-
-	msgEnc.Bool(false). // KeepUpToDate
-				Marshal(&models.TagValueList{})
+	if msgEnc.Err() != nil {
+		return nil, msgEnc.Err()
+	}
 
 	// Send it
 	err := c.sendRequest(msgEnc.Bytes(), req)
@@ -355,18 +401,37 @@ func (c *Client) RequestHistoricalTicks(ctx context.Context, opts models.Histori
 	})
 
 	// Build the message to send
-	msgEnc := utils.NewMessageEncoder().Reserve(22).
-		RawUInt32(common.REQ_HISTORICAL_TICKS).
-		RequestID(req.ID()).
-		Marshal(opts.Contract).
-		Bool(opts.Contract.IncludeExpired).
-		String(opts.StartDate.Format("20060102-15:04:05")).
-		String(opts.EndDate.Format("20060102-15:04:05")).
-		Int(opts.NumberOfTicks).
-		String(opts.WhatToShow.String()).
-		Bool(opts.OnlyRegularTradingHours).
-		Bool(opts.IgnoreSize).
-		Marshal(&models.TagValueList{})
+	var msgEnc *message.Encoder
+	if c.isProtoBufAvailable(common.REQ_HISTORICAL_TICKS) {
+		pb := protobuf.HistoricalTicksRequest{
+			ReqId:         protofmt.Int32(req.ID()),
+			Contract:      opts.Contract.Proto(nil),
+			StartDateTime: protofmt.String(opts.StartDate.Format("20060102-15:04:05")),
+			EndDateTime:   protofmt.String(opts.EndDate.Format("20060102-15:04:05")),
+			NumberOfTicks: protofmt.Int32(int32(opts.NumberOfTicks)),
+			WhatToShow:    protofmt.String(opts.WhatToShow.String()),
+			UseRTH:        protofmt.Bool(opts.OnlyRegularTradingHours),
+			IgnoreSize:    protofmt.Bool(opts.IgnoreSize),
+		}
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.REQ_HISTORICAL_TICKS + common.PROTOBUF_MSG_ID).
+			Proto(&pb)
+	} else {
+		msgEnc = message.NewEncoder().Reserve(22).
+			RawUInt32(common.REQ_HISTORICAL_TICKS).
+			RequestID(req.ID()).
+			Marshal(opts.Contract, 2).
+			String(opts.StartDate.Format("20060102-15:04:05")).
+			String(opts.EndDate.Format("20060102-15:04:05")).
+			Int(opts.NumberOfTicks).
+			String(opts.WhatToShow.String()).
+			Bool(opts.OnlyRegularTradingHours).
+			Bool(opts.IgnoreSize).
+			Marshal(&models.TagValueList{}, 1)
+	}
+	if msgEnc.Err() != nil {
+		return nil, msgEnc.Err()
+	}
 
 	// Send it
 	err := c.sendRequest(msgEnc.Bytes(), req)
@@ -400,8 +465,9 @@ func (c *Client) RequestContractDetails(ctx context.Context, opts models.Contrac
 
 	// Create the new request and response holder
 	resp := &models.ContractDetailsResponse{
-		ContractDetails: make([]models.ContractDetails, 0),
+		ContractDetails: make([]*models.ContractDetails, 0),
 	}
+
 	req := c.createRequest(RequestOptions{
 		Type:     RequestTypeRequestWithID,
 		MsgCode:  common.REQ_CONTRACT_DATA,
@@ -409,16 +475,26 @@ func (c *Client) RequestContractDetails(ctx context.Context, opts models.Contrac
 	})
 
 	// Build the message to send
-	const VERSION = 8
-	msgEnc := utils.NewMessageEncoder().Reserve(21).
-		RawUInt32(common.REQ_CONTRACT_DATA).
-		RequestID(req.ID()).
-		Int(VERSION).
-		Marshal(opts.Contract).
-		Bool(opts.Contract.IncludeExpired).
-		String(opts.Contract.SecIDType).
-		String(opts.Contract.SecID).
-		String(opts.Contract.IssuerID)
+	var msgEnc *message.Encoder
+	if c.isProtoBufAvailable(common.REQ_CONTRACT_DATA) {
+		pb := protobuf.ContractDataRequest{
+			ReqId:    protofmt.Int32(req.ID()),
+			Contract: opts.Contract.Proto(nil),
+		}
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.REQ_CONTRACT_DATA + common.PROTOBUF_MSG_ID).
+			Proto(&pb)
+	} else {
+		const VERSION = 8
+		msgEnc = message.NewEncoder().Reserve(21).
+			RawUInt32(common.REQ_CONTRACT_DATA).
+			RequestID(req.ID()).
+			Int(VERSION).
+			Marshal(opts.Contract, 3)
+	}
+	if msgEnc.Err() != nil {
+		return nil, msgEnc.Err()
+	}
 
 	// Send it
 	err := c.sendRequest(msgEnc.Bytes(), req)
@@ -447,7 +523,7 @@ func (c *Client) RequestMatchingSymbols(ctx context.Context, opts models.Matchin
 
 	// Create the new request and response holder
 	resp := &models.MatchingSymbolsResponse{
-		ContractDescriptions: make([]models.ContractDescription, 0),
+		ContractDescriptions: make([]*models.ContractDescription, 0),
 	}
 	req := c.createRequest(RequestOptions{
 		Type:     RequestTypeRequestWithID,
@@ -456,10 +532,13 @@ func (c *Client) RequestMatchingSymbols(ctx context.Context, opts models.Matchin
 	})
 
 	// Build the message to send
-	msgEnc := utils.NewMessageEncoder().Reserve(3).
+	msgEnc := message.NewEncoder().Reserve(3).
 		RawUInt32(common.REQ_MATCHING_SYMBOLS).
 		RequestID(req.ID()).
 		String(opts.Pattern)
+	if msgEnc.Err() != nil {
+		return nil, msgEnc.Err()
+	}
 
 	// Send it
 	err := c.sendRequest(msgEnc.Bytes(), req)
@@ -491,11 +570,24 @@ func (c *Client) RequestMarketDataType(_ context.Context, opts models.MarketData
 	defer c.rp.Release()
 
 	// Build the message to send
-	const VERSION = 1
-	msgEnc := utils.NewMessageEncoder().Reserve(3).
-		RawUInt32(common.REQ_MARKET_DATA_TYPE).
-		Int(VERSION).
-		Int(int(opts.Type))
+	var msgEnc *message.Encoder
+	if c.isProtoBufAvailable(common.REQ_MARKET_DATA_TYPE) {
+		pb := protobuf.MarketDataTypeRequest{
+			MarketDataType: protofmt.Int32(int32(opts.Type)),
+		}
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.REQ_MARKET_DATA_TYPE + common.PROTOBUF_MSG_ID).
+			Proto(&pb)
+	} else {
+		const VERSION = 1
+		msgEnc = message.NewEncoder().Reserve(3).
+			RawUInt32(common.REQ_MARKET_DATA_TYPE).
+			Int(VERSION).
+			Int(int(opts.Type))
+	}
+	if msgEnc.Err() != nil {
+		return msgEnc.Err()
+	}
 
 	// Send it
 	err := c.sendMessage(msgEnc.Bytes())
@@ -542,7 +634,8 @@ func (c *Client) RequestTopMarketData(_ context.Context, opts models.TopMarketDa
 	}
 
 	// Build the message to send
-	const VERSION = 11
+	var msgEnc *message.Encoder
+
 	genericTickSB := strings.Builder{}
 	for idx, gt := range opts.AdditionalGenericTicks {
 		if idx > 0 {
@@ -550,33 +643,45 @@ func (c *Client) RequestTopMarketData(_ context.Context, opts models.TopMarketDa
 		}
 		_, _ = genericTickSB.WriteString(strconv.Itoa(int(gt)))
 	}
-	msgEnc := utils.NewMessageEncoder().Reserve(3).
-		RawUInt32(common.REQ_MKT_DATA).
-		Int(VERSION).
-		RequestID(req.ID()).
-		Marshal(opts.Contract)
-	if opts.Contract.SecType == models.SecurityTypePair {
-		comboLegsCount := len(opts.Contract.ComboLegs)
-		msgEnc.Int(comboLegsCount)
-		for _, comboLeg := range opts.Contract.ComboLegs {
-			msgEnc.Int64(comboLeg.ConID, false).
-				Int64(comboLeg.Ratio, false).
-				String(comboLeg.Action).
-				String(comboLeg.Exchange)
+
+	if c.isProtoBufAvailable(common.REQ_MKT_DATA) {
+		pb := protobuf.MarketDataRequest{
+			ReqId:              protofmt.Int32(req.ID()),
+			Contract:           opts.Contract.Proto(nil),
+			GenericTickList:    protofmt.String(genericTickSB.String()),
+			Snapshot:           protofmt.Bool(opts.Snapshot),
+			RegulatorySnapshot: protofmt.Bool(opts.RegulatorySnapshot),
 		}
-	}
-	if opts.Contract.DeltaNeutralContract != nil {
-		msgEnc.Bool(true).
-			Int64(opts.Contract.DeltaNeutralContract.ConID, false).
-			Float64(opts.Contract.DeltaNeutralContract.Delta, false).
-			Float64(opts.Contract.DeltaNeutralContract.Price, false)
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.REQ_MKT_DATA + common.PROTOBUF_MSG_ID).
+			Proto(&pb)
 	} else {
-		msgEnc.Bool(false)
+		const VERSION = 11
+		msgEnc = message.NewEncoder().Reserve(3).
+			RawUInt32(common.REQ_MKT_DATA).
+			Int(VERSION).
+			RequestID(req.ID()).
+			Marshal(opts.Contract, 1)
+		if opts.Contract.SecType == models.SecurityTypePair {
+			msgEnc.Int(len(opts.Contract.ComboLegs))
+			for _, comboLeg := range opts.Contract.ComboLegs {
+				msgEnc.Marshal(comboLeg, 1)
+			}
+		}
+		if opts.Contract.DeltaNeutralContract != nil {
+			msgEnc.Bool(true).
+				Marshal(opts.Contract.DeltaNeutralContract, 1)
+		} else {
+			msgEnc.Bool(false)
+		}
+		msgEnc.String(genericTickSB.String())
+		msgEnc.Bool(opts.Snapshot)
+		msgEnc.Bool(opts.RegulatorySnapshot).
+			Marshal(&models.TagValueList{}, 1)
 	}
-	msgEnc.String(genericTickSB.String())
-	msgEnc.Bool(opts.Snapshot)
-	msgEnc.Bool(opts.RegulatorySnapshot).
-		Marshal(&models.TagValueList{})
+	if msgEnc.Err() != nil {
+		return nil, msgEnc.Err()
+	}
 
 	// Send it
 	err := c.sendRequest(msgEnc.Bytes(), req)
@@ -627,15 +732,31 @@ func (c *Client) RequestMarketDepthData(_ context.Context, opts models.MarketDep
 	}
 
 	// Build the message to send
-	const VERSION = 5
-	msgEnc := utils.NewMessageEncoder().Reserve(17).
-		RawUInt32(common.REQ_MKT_DEPTH).
-		Int(VERSION).
-		RequestID(req.ID()).
-		Marshal(opts.Contract).
-		Int(opts.RowsCount).
-		Bool(opts.SmartDepth).
-		Marshal(&models.TagValueList{})
+	var msgEnc *message.Encoder
+	if c.isProtoBufAvailable(common.REQ_MKT_DEPTH) {
+		pb := protobuf.MarketDepthRequest{
+			ReqId:        protofmt.Int32(req.ID()),
+			Contract:     opts.Contract.Proto(nil),
+			NumRows:      protofmt.Int32(int32(opts.RowsCount)),
+			IsSmartDepth: protofmt.Bool(opts.SmartDepth),
+		}
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.REQ_MKT_DEPTH + common.PROTOBUF_MSG_ID).
+			Proto(&pb)
+	} else {
+		const VERSION = 5
+		msgEnc = message.NewEncoder().Reserve(17).
+			RawUInt32(common.REQ_MKT_DEPTH).
+			Int(VERSION).
+			RequestID(req.ID()).
+			Marshal(opts.Contract, 1).
+			Int(opts.RowsCount).
+			Bool(opts.SmartDepth).
+			Marshal(&models.TagValueList{}, 1)
+	}
+	if msgEnc.Err() != nil {
+		return nil, msgEnc.Err()
+	}
 
 	// Send it
 	err := c.sendRequest(msgEnc.Bytes(), req)
@@ -655,11 +776,21 @@ func (c *Client) cancelTopMarketData(req *Request) {
 	defer c.rp.Release()
 
 	// Build the message to send
-	const VERSION = 2
-	msgEnc := utils.NewMessageEncoder().Reserve(3).
-		RawUInt32(common.CANCEL_MKT_DATA).
-		Int(VERSION).
-		RequestID(req.ID())
+	var msgEnc *message.Encoder
+	if c.isProtoBufAvailable(common.CANCEL_MKT_DATA) {
+		pb := protobuf.CancelMarketData{
+			ReqId: protofmt.Int32(req.ID()),
+		}
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.CANCEL_MKT_DATA + common.PROTOBUF_MSG_ID).
+			Proto(&pb)
+	} else {
+		const VERSION = 2
+		msgEnc = message.NewEncoder().Reserve(3).
+			RawUInt32(common.CANCEL_MKT_DATA).
+			Int(VERSION).
+			RequestID(req.ID())
+	}
 
 	// Send it
 	_ = c.sendMessage(msgEnc.Bytes())
@@ -676,16 +807,32 @@ func (c *Client) cancelMarketDepthData(req *Request, isSmartDepth bool) {
 	defer c.rp.Release()
 
 	// Build the message to send
-	const VERSION = 1
-	msgEnc := utils.NewMessageEncoder().Reserve(4).
-		RawUInt32(common.CANCEL_MKT_DEPTH).
-		Int(VERSION).
-		RequestID(req.ID()).
-		Bool(isSmartDepth)
+	var msgEnc *message.Encoder
+	if c.isProtoBufAvailable(common.CANCEL_MKT_DEPTH) {
+		pb := protobuf.CancelMarketDepth{
+			ReqId:        protofmt.Int32(req.ID()),
+			IsSmartDepth: protofmt.Bool(isSmartDepth),
+		}
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.CANCEL_MKT_DEPTH + common.PROTOBUF_MSG_ID).
+			Proto(&pb)
+	} else {
+		const VERSION = 1
+		msgEnc = message.NewEncoder().Reserve(4).
+			RawUInt32(common.CANCEL_MKT_DEPTH).
+			Int(VERSION).
+			RequestID(req.ID()).
+			Bool(isSmartDepth)
+	}
 
 	// Send it
 	_ = c.sendMessage(msgEnc.Bytes())
 
 	// Remove the request from the manager
 	c.reqMgr.removeRequest(req, nil)
+}
+
+func (c *Client) isProtoBufAvailable(msgType uint32) bool {
+	minServerVer, ok := common.PROTOBUF_MSG_IDS[msgType]
+	return ok && c.serverVersion >= minServerVer
 }

@@ -3,6 +3,9 @@ package models
 import (
 	"fmt"
 	"time"
+
+	"github.com/mxmauro/ibkr/proto/protobuf"
+	"github.com/mxmauro/ibkr/utils/encoders/protofmt"
 )
 
 // -----------------------------------------------------------------------------
@@ -13,7 +16,7 @@ type HistoricalTickLast struct {
 	Time              time.Time // Epoch in seconds
 	TickAttribLast    TickAttribLast
 	Price             float64
-	Size              Decimal
+	Size              *Decimal
 	Exchange          string
 	SpecialConditions string
 }
@@ -21,13 +24,34 @@ type HistoricalTickLast struct {
 // -----------------------------------------------------------------------------
 
 func NewHistoricalTickLast() HistoricalTickLast {
-	htl := HistoricalTickLast{
-		Size: UNSET_DECIMAL,
-	}
+	htl := HistoricalTickLast{}
 	return htl
 }
 
-func (h HistoricalTickLast) String() string {
-	return fmt.Sprintf("Time: %s, TickAttribLast: %s, Price: %f, Size: %s, Exchange: %s, SpecialConditions: %s",
-		h.Time.Format("2006/01/02 15:04:05"), h.TickAttribLast, h.Price, h.Size.StringMax(), h.Exchange, h.SpecialConditions)
+func NewHistoricalTickLastFromProtobufDecoder(
+	msgDec *protofmt.Decoder, pb *protobuf.HistoricalTickLast,
+) HistoricalTickLast {
+	htl := NewHistoricalTickLast()
+	if pb == nil {
+		return htl
+	}
+	htl.Time = msgDec.EpochTimestamp(pb.Time, false)
+	htl.TickAttribLast = NewTickAttribLastFromProtobufDecoder(msgDec, pb.TickAttribLast)
+	htl.Price = msgDec.Float(pb.Price)
+	htl.Size = NewDecimalMaxFromProtobufDecoder(msgDec, pb.Size)
+	htl.Exchange = msgDec.String(pb.Exchange)
+	htl.SpecialConditions = msgDec.String(pb.SpecialConditions)
+	return htl
+}
+
+func (htl HistoricalTickLast) String() string {
+	return fmt.Sprintf(
+		"Time: %s, Price: %f, Size: %s, Exchange: %s, SpecialConditions: %s, TickAttribLast [%s]",
+		htl.Time.Format("2006/01/02 15:04:05"),
+		htl.Price,
+		htl.Size.StringMax(),
+		htl.Exchange,
+		htl.SpecialConditions,
+		htl.TickAttribLast.String(),
+	)
 }

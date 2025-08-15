@@ -1,25 +1,25 @@
 package models
 
 import (
-	"github.com/mxmauro/ibkr/utils"
+	"github.com/mxmauro/ibkr/utils/encoders/message"
 )
 
 // -----------------------------------------------------------------------------
 
-type PriceCondition struct {
-	*ContractCondition
+type OrderPriceCondition struct {
+	OrderContractCondition
 	Price         float64
-	TriggerMethod int64
+	TriggerMethod TriggerMethod
 }
 
 // -----------------------------------------------------------------------------
 
-func (pc *PriceCondition) decode(msgDec *utils.MessageDecoder) {
-	pc.ContractCondition.decode(msgDec)
-	pc.Price = msgDec.Float64(false)
-	pc.TriggerMethod = msgDec.Int64(false)
+func (pc *OrderPriceCondition) decode(msgDec *message.Decoder) {
+	pc.OrderContractCondition.decode(msgDec)
+	pc.Price = msgDec.Float()
+	pc.TriggerMethod = TriggerMethod(msgDec.Int32())
 }
 
-func (pc *PriceCondition) makeFields() []any {
-	return append(pc.ContractCondition.makeFields(), pc.Price, pc.TriggerMethod)
+func (pc *OrderPriceCondition) makeFields() []any {
+	return append(pc.OrderContractCondition.makeFields(), pc.Price, pc.TriggerMethod)
 }

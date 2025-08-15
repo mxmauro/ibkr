@@ -8,25 +8,19 @@ import (
 
 type OrderAllocation struct {
 	Account         string
-	Position        Decimal // UNSET_DECIMAL
-	PositionDesired Decimal // UNSET_DECIMAL
-	PositionAfter   Decimal // UNSET_DECIMAL
-	DesiredAllocQty Decimal // UNSET_DECIMAL
-	AllowedAllocQty Decimal // UNSET_DECIMAL
+	Position        *Decimal
+	PositionDesired *Decimal
+	PositionAfter   *Decimal
+	DesiredAllocQty *Decimal
+	AllowedAllocQty *Decimal
 	IsMonetary      bool
 }
 
 // -----------------------------------------------------------------------------
 
 func NewOrderAllocation() *OrderAllocation {
-	oa := &OrderAllocation{
-		Position:        UNSET_DECIMAL,
-		PositionDesired: UNSET_DECIMAL,
-		PositionAfter:   UNSET_DECIMAL,
-		DesiredAllocQty: UNSET_DECIMAL,
-		AllowedAllocQty: UNSET_DECIMAL,
-	}
-	return oa
+	oa := OrderAllocation{}
+	return &oa
 }
 
 func (oa *OrderAllocation) String() string {

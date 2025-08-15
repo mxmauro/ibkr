@@ -12,66 +12,99 @@ import (
 
 // -----------------------------------------------------------------------------
 
-type Suite struct {
-	t      *testing.T
-	client *ibkr.Client
-}
-
 func TestSuite(t *testing.T) {
-	suite := Suite{
-		t: t,
-	}
+	client := connect(t)
+	t.Cleanup(func() {
+		client.Destroy()
+	})
 
-	suite.Setup()
+	sw := newStopWatch()
 
-	// -------------------------------------------------------------------------
+	t.Run("Current-time", func(t *testing.T) {
+		swm := newStopWatchMeasure(t, sw)
+		defer swm.End()
 
-	suite.RunParallel("Current time", testCurrentTime)
-	suite.RunParallel("Managed accounts", testManagedAccounts)
-	suite.RunParallel("Historical data", testHistoricalData)
-	suite.RunParallel("Historical ticks", testHistoricalTicks)
-	suite.RunParallel("Contract details", testContractDetails)
-	suite.RunParallel("Matching symbols", testMatchingSymbols)
-	suite.Run("Top market data", testTopMarketData)
-	suite.Run("Depth market data", testDepthMarketData)
+		testCurrentTime(t, client)
+	})
+	t.Run("Managed-accounts", func(t *testing.T) {
+		t.Parallel()
+
+		swm := newStopWatchMeasure(t, sw)
+		defer swm.End()
+
+		testManagedAccounts(t, client)
+	})
+	t.Run("Historical-data", func(t *testing.T) {
+		t.Parallel()
+
+		swm := newStopWatchMeasure(t, sw)
+		defer swm.End()
+
+		testHistoricalData(t, client)
+	})
+	t.Run("Historical-ticks", func(t *testing.T) {
+		t.Parallel()
+
+		swm := newStopWatchMeasure(t, sw)
+		defer swm.End()
+
+		testHistoricalTicks(t, client)
+	})
+	t.Run("Contract-details", func(t *testing.T) {
+		t.Parallel()
+
+		swm := newStopWatchMeasure(t, sw)
+		defer swm.End()
+
+		testContractDetails(t, client)
+	})
+	t.Run("Matching-symbols", func(t *testing.T) {
+		t.Parallel()
+
+		swm := newStopWatchMeasure(t, sw)
+		defer swm.End()
+
+		testMatchingSymbols(t, client)
+	})
+	t.Run("Top-market-data", func(t *testing.T) {
+		t.Parallel()
+
+		swm := newStopWatchMeasure(t, sw)
+		defer swm.End()
+
+		testTopMarketData(t, client)
+	})
+	t.Run("Depth-market-data", func(t *testing.T) {
+		t.Parallel()
+
+		swm := newStopWatchMeasure(t, sw)
+		defer swm.End()
+
+		testDepthMarketData(t, client)
+	})
 }
 
 // -----------------------------------------------------------------------------
 
-func (suite *Suite) Setup() {
-	var err error
-
-	suite.t.Log("Connecting to server...")
+func connect(t *testing.T) *ibkr.Client {
+	t.Log("Connecting to server...")
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelCtx()
 
-	suite.client, err = ibkr.NewClient(ctx, ibkr.Options{
-		Address: "127.0.0.1:4002",
+	client, err := ibkr.NewClient(ctx, ibkr.Options{
+		Address: "127.0.0.1:4001",
 		EventsHandler: ibkr.NewIncomingMessageLogger(func(msg string) {
-			suite.t.Log(msg)
+			t.Log(msg)
 		}),
 	})
 	if err != nil {
-		suite.t.Fatal(err)
+		t.Fatal(err)
 	}
+	t.Log("Server version is:", client.ServerVersion())
 
-	suite.t.Cleanup(func() {
-		suite.client.Destroy()
-	})
-}
-
-func (suite *Suite) Run(name string, f func(t *testing.T, client *ibkr.Client)) {
-	suite.t.Run(name, func(t *testing.T) {
-		f(t, suite.client)
-	})
-}
-
-func (suite *Suite) RunParallel(name string, f func(t *testing.T, client *ibkr.Client)) {
-	suite.t.Run(name, func(t *testing.T) {
-		t.Parallel()
-		f(t, suite.client)
-	})
+	// Done
+	return client
 }
 
 // -----------------------------------------------------------------------------
@@ -245,7 +278,7 @@ func testDepthMarketData(t *testing.T, client *ibkr.Client) {
 				loop = false
 				break
 			}
-			data.UpdateBook(&resp.Book)
+			resp.Book.UpdateBook(data)
 			t.Log(resp.Book.TableString())
 		}
 	}

@@ -3,6 +3,9 @@ package models
 import (
 	"fmt"
 	"time"
+
+	"github.com/mxmauro/ibkr/proto/protobuf"
+	"github.com/mxmauro/ibkr/utils/encoders/protofmt"
 )
 
 // -----------------------------------------------------------------------------
@@ -14,22 +17,38 @@ type HistoricalTickBidAsk struct {
 	TickAttribBidAsk TickAttribBidAsk
 	PriceBid         float64
 	PriceAsk         float64
-	SizeBid          Decimal
-	SizeAsk          Decimal
+	SizeBid          *Decimal
+	SizeAsk          *Decimal
 }
 
 // -----------------------------------------------------------------------------
 
 func NewHistoricalTickBidAsk() HistoricalTickBidAsk {
-	htba := HistoricalTickBidAsk{
-		SizeBid: UNSET_DECIMAL,
-		SizeAsk: UNSET_DECIMAL,
-	}
+	htba := HistoricalTickBidAsk{}
 	return htba
 }
 
-func (h HistoricalTickBidAsk) String() string {
-	return fmt.Sprintf("Time: %s, TickAttriBidAsk: %s, PriceBid: %f, PriceAsk: %f, SizeBid: %s, SizeAsk: %s",
-		h.Time.Format("2006/01/02 15:04:05"), h.TickAttribBidAsk, h.PriceBid, h.PriceAsk, h.SizeBid.StringMax(),
-		h.SizeAsk.StringMax())
+func NewHistoricalTickBidAskFromProtobufDecoder(msgDec *protofmt.Decoder, pb *protobuf.HistoricalTickBidAsk) HistoricalTickBidAsk {
+	htba := NewHistoricalTickBidAsk()
+	if pb == nil {
+		return htba
+	}
+	htba.Time = msgDec.EpochTimestamp(pb.Time, false)
+	htba.PriceBid = msgDec.Float(pb.PriceBid)
+	htba.PriceAsk = msgDec.Float(pb.PriceAsk)
+	htba.SizeBid = NewDecimalMaxFromProtobufDecoder(msgDec, pb.SizeBid)
+	htba.SizeAsk = NewDecimalMaxFromProtobufDecoder(msgDec, pb.SizeAsk)
+	return htba
+}
+
+func (htba HistoricalTickBidAsk) String() string {
+	return fmt.Sprintf(
+		"Time: %s, TickAttriBidAsk: %s, PriceBid: %f, PriceAsk: %f, SizeBid: %s, SizeAsk: %s",
+		htba.Time.Format("2006/01/02 15:04:05"),
+		htba.TickAttribBidAsk.String(),
+		htba.PriceBid,
+		htba.PriceAsk,
+		htba.SizeBid.StringMax(),
+		htba.SizeAsk.StringMax(),
+	)
 }

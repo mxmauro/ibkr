@@ -8,9 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/mxmauro/ibkr/models"
-	"github.com/mxmauro/ibkr/utils"
 )
 
 // -----------------------------------------------------------------------------
@@ -41,15 +38,15 @@ func (el *EventsLogger) ConnectionClosed(err error) {
 		msg("<ConnectionClosed>")
 }
 
-func (el *EventsLogger) ReceivedUnknownMessage(id int) {
+func (el *EventsLogger) ReceivedUnknownMessage(id uint32) {
 	el.build().
-		int64("MsgID", int64(id)).
+		int32("MsgID", int32(id)).
 		msg("<ReceivedUnknownMessage>")
 }
 
 func (el *EventsLogger) Error(ts time.Time, code int, message string, advancedOrderRejectJson string) {
 	logger := el.build().
-		str("Timestamp", ts.Format("2006-01-02 15:04:05")).
+		str("Timestamp", ts.Format("2006/01/02 15:04:05")).
 		int64("Code", int64(code)).
 		str("Message", message)
 	if len(advancedOrderRejectJson) > 0 {
@@ -58,9 +55,11 @@ func (el *EventsLogger) Error(ts time.Time, code int, message string, advancedOr
 	logger.msg("<Error>")
 }
 
+/*
+
 func (el *EventsLogger) TickPrice(reqID models.TickerID, tickType models.TickType, price float64, attrib models.TickAttrib) {
 	el.build().
-		int64("ReqID", reqID).
+		int32("ReqID", reqID).
 		int64("TickType", int64(tickType)).
 		str("Price", utils.FloatMaxString(price)).
 		bool("CanAutoExecute", attrib.CanAutoExecute).
@@ -71,7 +70,7 @@ func (el *EventsLogger) TickPrice(reqID models.TickerID, tickType models.TickTyp
 
 func (el *EventsLogger) TickSize(reqID models.TickerID, tickType models.TickType, size models.Decimal) {
 	el.build().
-		int64("ReqID", reqID).
+		int32("ReqID", int32(reqID)).
 		int64("TickType", int64(tickType)).
 		str("Size", size.StringMax()).
 		msg("<TickSize>")
@@ -79,9 +78,9 @@ func (el *EventsLogger) TickSize(reqID models.TickerID, tickType models.TickType
 
 func (el *EventsLogger) TickOptionComputation(reqID models.TickerID, tickType models.TickType, tickAttrib int64, impliedVol float64, delta float64, optPrice float64, pvDividend float64, gamma float64, vega float64, theta float64, undPrice float64) {
 	el.build().
-		int64("ReqID", reqID).
+		int32("ReqID", int32(reqID)).
 		int64("TickType", int64(tickType)).
-		str("TickAttrib", utils.IntMaxString(tickAttrib)).
+		str("TickAttrib", utils.Int32MaxString(tickAttrib)).
 		str("ImpliedVol", utils.FloatMaxString(impliedVol)).
 		str("Delta", utils.FloatMaxString(delta)).
 		str("OptPrice", utils.FloatMaxString(optPrice)).
@@ -95,7 +94,7 @@ func (el *EventsLogger) TickOptionComputation(reqID models.TickerID, tickType mo
 
 func (el *EventsLogger) TickGeneric(reqID models.TickerID, tickType models.TickType, value float64) {
 	el.build().
-		int64("ReqID", reqID).
+		int32("ReqID", int32(reqID)).
 		int64("TickType", int64(tickType)).
 		str("Value", utils.FloatMaxString(value)).
 		msg("<TickGeneric>")
@@ -158,7 +157,7 @@ func (el *EventsLogger) OpenOrder(orderID models.OrderID, contract *models.Contr
 		str("Status", orderState.Status).
 		str("MinTradeQty", utils.IntMaxString(order.MinTradeQty)).
 		str("MinCompeteSize", utils.IntMaxString(order.MinCompeteSize))
-	if order.CompeteAgainstBestOffset == models.COMPETE_AGAINST_BEST_OFFSET_UP_TO_MID {
+	if order.CompeteAgainstBestOffset == models.CompeteAgainstBestOffsetUpToMid {
 		logger.str("CompeteAgainstBestOffset", "UpToMid")
 	} else {
 		logger.str("CompeteAgainstBestOffset", utils.FloatMaxString(order.CompeteAgainstBestOffset))
@@ -669,7 +668,7 @@ func (el *EventsLogger) CompletedOrder(contract *models.Contract, order *models.
 		str("CompletedStatus", orderState.CompletedStatus).
 		str("MinTradeQty", utils.IntMaxString(order.MinTradeQty)).
 		str("MinCompeteSize", utils.IntMaxString(order.MinCompeteSize))
-	if order.CompeteAgainstBestOffset == models.COMPETE_AGAINST_BEST_OFFSET_UP_TO_MID {
+	if order.CompeteAgainstBestOffset == models.CompeteAgainstBestOffsetUpToMid {
 		logger.str("CompeteAgainstBestOffset", "UpToMid")
 	} else {
 		logger.str("CompeteAgainstBestOffset", utils.FloatMaxString(order.CompeteAgainstBestOffset))
@@ -724,6 +723,7 @@ func (el *EventsLogger) UserInfo(reqID int64, whiteBrandingId string) {
 		str("WhiteBrandingId", whiteBrandingId).
 		msg("<UserInfo>")
 }
+*/
 
 func (el *EventsLogger) build() *eventsLoggerBuilder {
 	b := &eventsLoggerBuilder{
@@ -732,6 +732,10 @@ func (el *EventsLogger) build() *eventsLoggerBuilder {
 		atNewLine: -1,
 	}
 	return b
+}
+
+func (b *eventsLoggerBuilder) int32(name string, value int32) *eventsLoggerBuilder {
+	return b.int64(name, int64(value))
 }
 
 func (b *eventsLoggerBuilder) int64(name string, value int64) *eventsLoggerBuilder {

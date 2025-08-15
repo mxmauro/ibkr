@@ -1,23 +1,23 @@
 package models
 
 import (
-	"github.com/mxmauro/ibkr/utils"
+	"github.com/mxmauro/ibkr/utils/encoders/message"
 )
 
 // -----------------------------------------------------------------------------
 
-type PercentChangeCondition struct {
-	*ContractCondition
+type OrderPercentChangeCondition struct {
+	OrderContractCondition
 	ChangePercent float64
 }
 
 // -----------------------------------------------------------------------------
 
-func (pcc *PercentChangeCondition) decode(msgDec *utils.MessageDecoder) {
-	pcc.ContractCondition.decode(msgDec)
-	pcc.ChangePercent = msgDec.Float64(false)
+func (pcc *OrderPercentChangeCondition) decode(msgDec *message.Decoder) {
+	pcc.OrderContractCondition.decode(msgDec)
+	pcc.ChangePercent = msgDec.Float()
 }
 
-func (pcc *PercentChangeCondition) makeFields() []any {
-	return append(pcc.ContractCondition.makeFields(), pcc.ChangePercent)
+func (pcc *OrderPercentChangeCondition) makeFields() []any {
+	return append(pcc.OrderContractCondition.makeFields(), pcc.ChangePercent)
 }
