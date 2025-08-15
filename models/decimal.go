@@ -114,7 +114,7 @@ func (d *Decimal) Int64() int64 {
 	return fixed.Fixed(*d).Int()
 }
 
-func (d *Decimal) Float64() float64 {
+func (d *Decimal) Float() float64 {
 	return fixed.Fixed(*d).Float()
 }
 
