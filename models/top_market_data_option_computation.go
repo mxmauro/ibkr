@@ -9,6 +9,7 @@ import (
 // -----------------------------------------------------------------------------
 
 type TopMarketDataOptionComputation struct {
+	TopMarketDataState
 	tickType          TickType
 	IsPriceBased      bool     // If false, then it is return-based.
 	ImpliedVolatility *float64 // The implied volatility calculated by the TWS option modeler, using the specified tick type value.

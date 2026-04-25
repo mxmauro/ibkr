@@ -168,7 +168,7 @@ type Order struct {
 	AutoCancelParent            *bool    `protobuf:"varint,117,opt,name=autoCancelParent,proto3,oneof" json:"autoCancelParent,omitempty"`
 	Shareholder                 *string  `protobuf:"bytes,118,opt,name=shareholder,proto3,oneof" json:"shareholder,omitempty"`
 	ImbalanceOnly               *bool    `protobuf:"varint,119,opt,name=imbalanceOnly,proto3,oneof" json:"imbalanceOnly,omitempty"`
-	RouteMarketableToBbo        *bool    `protobuf:"varint,120,opt,name=routeMarketableToBbo,proto3,oneof" json:"routeMarketableToBbo,omitempty"`
+	RouteMarketableToBbo        *int32   `protobuf:"varint,120,opt,name=routeMarketableToBbo,proto3,oneof" json:"routeMarketableToBbo,omitempty"`
 	ParentPermId                *int64   `protobuf:"varint,121,opt,name=parentPermId,proto3,oneof" json:"parentPermId,omitempty"`
 	UsePriceMgmtAlgo            *int32   `protobuf:"varint,122,opt,name=usePriceMgmtAlgo,proto3,oneof" json:"usePriceMgmtAlgo,omitempty"`
 	Duration                    *int32   `protobuf:"varint,123,opt,name=duration,proto3,oneof" json:"duration,omitempty"`
@@ -186,8 +186,16 @@ type Order struct {
 	IncludeOvernight            *bool    `protobuf:"varint,135,opt,name=includeOvernight,proto3,oneof" json:"includeOvernight,omitempty"`
 	ManualOrderIndicator        *int32   `protobuf:"varint,136,opt,name=manualOrderIndicator,proto3,oneof" json:"manualOrderIndicator,omitempty"`
 	Submitter                   *string  `protobuf:"bytes,137,opt,name=submitter,proto3,oneof" json:"submitter,omitempty"`
-	unknownFields               protoimpl.UnknownFields
-	sizeCache                   protoimpl.SizeCache
+	Deactivate                  *bool    `protobuf:"varint,138,opt,name=deactivate,proto3,oneof" json:"deactivate,omitempty"`
+	PostOnly                    *bool    `protobuf:"varint,139,opt,name=postOnly,proto3,oneof" json:"postOnly,omitempty"`
+	AllowPreOpen                *bool    `protobuf:"varint,140,opt,name=allowPreOpen,proto3,oneof" json:"allowPreOpen,omitempty"`
+	IgnoreOpenAuction           *bool    `protobuf:"varint,141,opt,name=ignoreOpenAuction,proto3,oneof" json:"ignoreOpenAuction,omitempty"`
+	SeekPriceImprovement        *int32   `protobuf:"varint,142,opt,name=seekPriceImprovement,proto3,oneof" json:"seekPriceImprovement,omitempty"`
+	WhatIfType                  *int32   `protobuf:"varint,143,opt,name=whatIfType,proto3,oneof" json:"whatIfType,omitempty"`
+	// hedge orders
+	HedgeMaxSize  *int32 `protobuf:"varint,144,opt,name=hedgeMaxSize,proto3,oneof" json:"hedgeMaxSize,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Order) Reset() {
@@ -1053,11 +1061,11 @@ func (x *Order) GetImbalanceOnly() bool {
 	return false
 }
 
-func (x *Order) GetRouteMarketableToBbo() bool {
+func (x *Order) GetRouteMarketableToBbo() int32 {
 	if x != nil && x.RouteMarketableToBbo != nil {
 		return *x.RouteMarketableToBbo
 	}
-	return false
+	return 0
 }
 
 func (x *Order) GetParentPermId() int64 {
@@ -1179,11 +1187,60 @@ func (x *Order) GetSubmitter() string {
 	return ""
 }
 
+func (x *Order) GetDeactivate() bool {
+	if x != nil && x.Deactivate != nil {
+		return *x.Deactivate
+	}
+	return false
+}
+
+func (x *Order) GetPostOnly() bool {
+	if x != nil && x.PostOnly != nil {
+		return *x.PostOnly
+	}
+	return false
+}
+
+func (x *Order) GetAllowPreOpen() bool {
+	if x != nil && x.AllowPreOpen != nil {
+		return *x.AllowPreOpen
+	}
+	return false
+}
+
+func (x *Order) GetIgnoreOpenAuction() bool {
+	if x != nil && x.IgnoreOpenAuction != nil {
+		return *x.IgnoreOpenAuction
+	}
+	return false
+}
+
+func (x *Order) GetSeekPriceImprovement() int32 {
+	if x != nil && x.SeekPriceImprovement != nil {
+		return *x.SeekPriceImprovement
+	}
+	return 0
+}
+
+func (x *Order) GetWhatIfType() int32 {
+	if x != nil && x.WhatIfType != nil {
+		return *x.WhatIfType
+	}
+	return 0
+}
+
+func (x *Order) GetHedgeMaxSize() int32 {
+	if x != nil && x.HedgeMaxSize != nil {
+		return *x.HedgeMaxSize
+	}
+	return 0
+}
+
 var File_Order_proto protoreflect.FileDescriptor
 
 const file_Order_proto_rawDesc = "" +
 	"\n" +
-	"\vOrder.proto\x12\bprotobuf\x1a\x14OrderCondition.proto\x1a\x14SoftDollarTier.proto\"\xb6H\n" +
+	"\vOrder.proto\x12\bprotobuf\x1a\x14OrderCondition.proto\x1a\x14SoftDollarTier.proto\"\xe9K\n" +
 	"\x05Order\x12\x1f\n" +
 	"\bclientId\x18\x01 \x01(\x05H\x00R\bclientId\x88\x01\x01\x12\x1d\n" +
 	"\aorderId\x18\x02 \x01(\x05H\x01R\aorderId\x88\x01\x01\x12\x1b\n" +
@@ -1322,7 +1379,7 @@ const file_Order_proto_rawDesc = "" +
 	"\x10autoCancelParent\x18u \x01(\bHpR\x10autoCancelParent\x88\x01\x01\x12%\n" +
 	"\vshareholder\x18v \x01(\tHqR\vshareholder\x88\x01\x01\x12)\n" +
 	"\rimbalanceOnly\x18w \x01(\bHrR\rimbalanceOnly\x88\x01\x01\x127\n" +
-	"\x14routeMarketableToBbo\x18x \x01(\bHsR\x14routeMarketableToBbo\x88\x01\x01\x12'\n" +
+	"\x14routeMarketableToBbo\x18x \x01(\x05HsR\x14routeMarketableToBbo\x88\x01\x01\x12'\n" +
 	"\fparentPermId\x18y \x01(\x03HtR\fparentPermId\x88\x01\x01\x12/\n" +
 	"\x10usePriceMgmtAlgo\x18z \x01(\x05HuR\x10usePriceMgmtAlgo\x88\x01\x01\x12\x1f\n" +
 	"\bduration\x18{ \x01(\x05HvR\bduration\x88\x01\x01\x12!\n" +
@@ -1339,7 +1396,18 @@ const file_Order_proto_rawDesc = "" +
 	"\x13bondAccruedInterest\x18\x86\x01 \x01(\tH\x81\x01R\x13bondAccruedInterest\x88\x01\x01\x121\n" +
 	"\x10includeOvernight\x18\x87\x01 \x01(\bH\x82\x01R\x10includeOvernight\x88\x01\x01\x129\n" +
 	"\x14manualOrderIndicator\x18\x88\x01 \x01(\x05H\x83\x01R\x14manualOrderIndicator\x88\x01\x01\x12#\n" +
-	"\tsubmitter\x18\x89\x01 \x01(\tH\x84\x01R\tsubmitter\x88\x01\x01\x1a=\n" +
+	"\tsubmitter\x18\x89\x01 \x01(\tH\x84\x01R\tsubmitter\x88\x01\x01\x12%\n" +
+	"\n" +
+	"deactivate\x18\x8a\x01 \x01(\bH\x85\x01R\n" +
+	"deactivate\x88\x01\x01\x12!\n" +
+	"\bpostOnly\x18\x8b\x01 \x01(\bH\x86\x01R\bpostOnly\x88\x01\x01\x12)\n" +
+	"\fallowPreOpen\x18\x8c\x01 \x01(\bH\x87\x01R\fallowPreOpen\x88\x01\x01\x123\n" +
+	"\x11ignoreOpenAuction\x18\x8d\x01 \x01(\bH\x88\x01R\x11ignoreOpenAuction\x88\x01\x01\x129\n" +
+	"\x14seekPriceImprovement\x18\x8e\x01 \x01(\x05H\x89\x01R\x14seekPriceImprovement\x88\x01\x01\x12%\n" +
+	"\n" +
+	"whatIfType\x18\x8f\x01 \x01(\x05H\x8a\x01R\n" +
+	"whatIfType\x88\x01\x01\x12)\n" +
+	"\fhedgeMaxSize\x18\x90\x01 \x01(\x05H\x8b\x01R\fhedgeMaxSize\x88\x01\x01\x1a=\n" +
 	"\x0fAlgoParamsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1aJ\n" +
@@ -1496,7 +1564,14 @@ const file_Order_proto_rawDesc = "" +
 	"\x11_includeOvernightB\x17\n" +
 	"\x15_manualOrderIndicatorB\f\n" +
 	"\n" +
-	"_submitterBf\n" +
+	"_submitterB\r\n" +
+	"\v_deactivateB\v\n" +
+	"\t_postOnlyB\x0f\n" +
+	"\r_allowPreOpenB\x14\n" +
+	"\x12_ignoreOpenAuctionB\x17\n" +
+	"\x15_seekPriceImprovementB\r\n" +
+	"\v_whatIfTypeB\x0f\n" +
+	"\r_hedgeMaxSizeBf\n" +
 	"\fcom.protobufB\n" +
 	"OrderProtoP\x01Z\n" +
 	".;protobuf\xa2\x02\x03PXX\xaa\x02\bProtobuf\xca\x02\bProtobuf\xe2\x02\x14Protobuf\\GPBMetadata\xea\x02\bProtobufb\x06proto3"

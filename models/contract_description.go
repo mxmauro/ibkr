@@ -2,6 +2,9 @@ package models
 
 import (
 	"strings"
+
+	"github.com/mxmauro/ibkr/proto/protobuf"
+	"github.com/mxmauro/ibkr/utils/encoders/protofmt"
 )
 
 // -----------------------------------------------------------------------------
@@ -19,6 +22,19 @@ func NewContractDescription() *ContractDescription {
 		Contract: NewContract(),
 	}
 	return &cd
+}
+
+func NewContractDescriptionFromProtobufDecoder(msgDec *protofmt.Decoder, pb *protobuf.ContractDescription) *ContractDescription {
+	cd := NewContractDescription()
+	if pb == nil {
+		return cd
+	}
+	cd.Contract = NewContractFromProtobufDecoder(msgDec, pb.Contract)
+	cd.DerivativeSecTypes = make([]SecurityType, len(pb.DerivativeSecTypes))
+	for idx, dst := range pb.DerivativeSecTypes {
+		cd.DerivativeSecTypes[idx] = NewSecurityTypeFromString(dst)
+	}
+	return cd
 }
 
 func (c *ContractDescription) String() string {

@@ -513,7 +513,7 @@ func (d *OrderDecoder) decodeImbalanceOnly(msgDec *message.Decoder) {
 }
 
 func (d *OrderDecoder) decodeRouteMarketableToBbo(msgDec *message.Decoder) {
-	d.order.RouteMarketableToBbo = msgDec.Bool()
+	d.order.RouteMarketableToBbo = msgDec.Int32()
 }
 
 func (d *OrderDecoder) decodeParentPermId(msgDec *message.Decoder) {

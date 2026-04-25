@@ -26,6 +26,7 @@ import (
 type Client struct {
 	rp            rundownprotection.RundownProtection
 	eventsHandler Events
+	orderStore    OrderStore
 	tzOffset      time.Duration
 
 	wg          sync.WaitGroup
@@ -37,6 +38,7 @@ type Client struct {
 	isDisconnectedEv *resetevent.ManualResetEvent
 	clientID         int32
 	serverVersion    int32
+	marketDataType   int32
 
 	nextValidReqID        int32
 	nextValidReqWithoutID int32
@@ -47,6 +49,7 @@ type Client struct {
 type Options struct {
 	Address       string
 	EventsHandler Events
+	OrderStore    OrderStore
 	TzOffset      interface{}
 
 	ConnectOptions       string
@@ -96,6 +99,7 @@ func NewClient(ctx context.Context, opts Options) (*Client, error) {
 	// Create the client object
 	c := Client{
 		eventsHandler: opts.EventsHandler,
+		orderStore:    opts.OrderStore,
 		tzOffset:      tzOffset,
 
 		wg:          sync.WaitGroup{},
@@ -104,9 +108,13 @@ func NewClient(ctx context.Context, opts Options) (*Client, error) {
 		connMtx:          sync.Mutex{},
 		isDisconnectedEv: resetevent.NewManualResetEvent(),
 	}
+	if c.orderStore == nil {
+		c.orderStore = noopOrderStore{}
+	}
 	c.rp.Initialize()
 	c.initRequestManager()
 	atomic.StoreInt32(&c.nextValidReqWithoutID, 1)
+	atomic.StoreInt32(&c.marketDataType, int32(models.MarketDataTypeDelayed))
 
 	// Try to connect to the server
 	err = c.connectToServer(ctx, opts)
@@ -117,6 +125,19 @@ func NewClient(ctx context.Context, opts Options) (*Client, error) {
 	// Initiate the connection background worker
 	c.wg.Add(1)
 	go c.connectionWorker()
+
+	err = c.RequestMarketDataType(ctx, models.MarketDataTypeRequestOptions{
+		Type: models.MarketDataTypeRealtime,
+	})
+	if err != nil {
+		c.connMtx.Lock()
+		if c.conn != nil {
+			c.conn.Close()
+		}
+		c.connMtx.Unlock()
+		c.wg.Wait()
+		return nil, err
+	}
 
 	// Done
 	return &c, nil
@@ -265,7 +286,7 @@ func (c *Client) RequestHistoricalData(ctx context.Context, opts models.Historic
 	if len(opts.DurationUnit.String()) == 0 {
 		return nil, errors.New("invalid duration units")
 	}
-	if opts.EndDate.IsZero() || opts.EndDate.Before(utils.EpochDate) {
+	if !opts.KeepUpToDate && (opts.EndDate.IsZero() || opts.EndDate.Before(utils.EpochDate)) {
 		return nil, errors.New("invalid end date")
 	}
 	if len(opts.BarSize.String()) == 0 {
@@ -285,6 +306,10 @@ func (c *Client) RequestHistoricalData(ctx context.Context, opts models.Historic
 	if len(opts.WhatToShow.String()) == 0 {
 		return nil, errors.New("invalid what to show")
 	}
+	endDateTime := ""
+	if !opts.KeepUpToDate {
+		endDateTime = opts.EndDate.Format("20060102-15:04:05")
+	}
 
 	// Rundown protect
 	if !c.rp.Acquire() {
@@ -293,14 +318,22 @@ func (c *Client) RequestHistoricalData(ctx context.Context, opts models.Historic
 	defer c.rp.Release()
 
 	// Create the new request and response holder
-	resp := &models.HistoricalDataResponse{
-		Bars: make([]models.HistoricalDataBar, 0),
-	}
+	streamResp := newHistoricalDataStreamResponse(opts.KeepUpToDate, opts.BarSize.Seconds())
+	resp := streamResp.resp
 	req := c.createRequest(RequestOptions{
 		Type:     RequestTypeRequestWithID,
 		MsgCode:  common.REQ_HISTORICAL_DATA,
-		Response: resp,
+		Response: streamResp,
+		CompleteCB: func(req *Request, err error) {
+			streamResp.close()
+		},
 	})
+	resp.Cancel = newRequestCancelFunc(func() {
+		c.cancelHistoricalData(req)
+	})
+	resp.Err = func() error {
+		return req.Err()
+	}
 
 	// Build the message to send
 	var msgEnc *message.Encoder
@@ -308,13 +341,16 @@ func (c *Client) RequestHistoricalData(ctx context.Context, opts models.Historic
 		pb := protobuf.HistoricalDataRequest{
 			ReqId:          protofmt.Int32(req.ID()),
 			Contract:       opts.Contract.Proto(nil),
-			EndDateTime:    protofmt.String(opts.EndDate.Format("20060102-15:04:05")),
+			EndDateTime:    protofmt.String(endDateTime),
 			BarSizeSetting: protofmt.String(opts.BarSize.String()),
 			Duration:       protofmt.String(strconv.Itoa(opts.Duration) + " " + opts.DurationUnit.String()),
 			UseRTH:         protofmt.Bool(opts.OnlyRegularTradingHours),
 			WhatToShow:     protofmt.String(opts.WhatToShow.String()),
 			FormatDate:     protofmt.Int32(2), // Return epoch timestamp
-			KeepUpToDate:   protofmt.Bool(false),
+			KeepUpToDate:   protofmt.Bool(opts.KeepUpToDate),
+		}
+		if chartOptions := tagValueListToMap(opts.ChartOptions); len(chartOptions) > 0 {
+			pb.ChartOptions = chartOptions
 		}
 		msgEnc = message.NewEncoder().
 			RawUInt32(common.REQ_HISTORICAL_DATA + common.PROTOBUF_MSG_ID).
@@ -324,7 +360,7 @@ func (c *Client) RequestHistoricalData(ctx context.Context, opts models.Historic
 			RawUInt32(common.REQ_HISTORICAL_DATA).
 			RequestID(req.ID()).
 			Marshal(opts.Contract, 2).
-			String(opts.EndDate.Format("20060102-15:04:05")).
+			String(endDateTime).
 			String(opts.BarSize.String()).
 			String(strconv.Itoa(opts.Duration) + " " + opts.DurationUnit.String()).
 			Bool(opts.OnlyRegularTradingHours).
@@ -336,8 +372,8 @@ func (c *Client) RequestHistoricalData(ctx context.Context, opts models.Historic
 				msgEnc.Marshal(comboLeg, 1)
 			}
 		}
-		msgEnc.Bool(false). // KeepUpToDate
-					Marshal(&models.TagValueList{}, 1)
+		msgEnc.Bool(opts.KeepUpToDate).
+			Marshal(&opts.ChartOptions, 1)
 	}
 	if msgEnc.Err() != nil {
 		return nil, msgEnc.Err()
@@ -348,6 +384,10 @@ func (c *Client) RequestHistoricalData(ctx context.Context, opts models.Historic
 	if err != nil {
 		return nil, err
 	}
+	if opts.KeepUpToDate {
+		bindStreamRequestContext(ctx, req, resp.Cancel)
+		return resp, nil
+	}
 	defer c.reqMgr.removeRequest(req, context.Canceled)
 
 	// Wait until the response is fulfilled
@@ -357,6 +397,157 @@ func (c *Client) RequestHistoricalData(ctx context.Context, opts models.Historic
 	}
 
 	// Done
+	return resp, nil
+}
+
+func (c *Client) RequestRealTimeBars(ctx context.Context, opts models.RealTimeBarsRequestOptions) (*models.RealTimeBarsResponse, error) {
+	if opts.Contract == nil {
+		return nil, errors.New("invalid contract")
+	}
+	if opts.BarSize == 0 {
+		opts.BarSize = 5
+	}
+	if opts.BarSize < 1 {
+		return nil, errors.New("invalid bar size")
+	}
+	switch opts.WhatToShow {
+	case models.WhatToShowTrades:
+	case models.WhatToShowMidPoint:
+	case models.WhatToShowBid:
+	case models.WhatToShowAsk:
+	default:
+		return nil, errors.New("invalid what to show")
+	}
+	if !c.rp.Acquire() {
+		return nil, net.ErrClosed
+	}
+	defer c.rp.Release()
+
+	streamResp := newRealTimeBarsStreamResponse(int64(opts.BarSize))
+	resp := streamResp.resp
+	req := c.createRequest(RequestOptions{
+		Type:     RequestTypeRequestWithTickerID,
+		MsgCode:  common.REQ_REAL_TIME_BARS,
+		Response: streamResp,
+		CompleteCB: func(req *Request, err error) {
+			streamResp.close()
+		},
+	})
+	resp.Cancel = newRequestCancelFunc(func() {
+		c.cancelRealTimeBars(req)
+	})
+	resp.Err = func() error {
+		return req.Err()
+	}
+
+	var msgEnc *message.Encoder
+	if c.isProtoBufAvailable(common.REQ_REAL_TIME_BARS) {
+		pb := protobuf.RealTimeBarsRequest{
+			ReqId:      protofmt.Int32(req.ID()),
+			Contract:   opts.Contract.Proto(nil),
+			BarSize:    protofmt.Int32(int32(opts.BarSize)),
+			WhatToShow: protofmt.String(opts.WhatToShow.String()),
+			UseRTH:     protofmt.Bool(opts.OnlyRegularTradingHours),
+		}
+		if realTimeBarsOptions := tagValueListToMap(opts.Options); len(realTimeBarsOptions) > 0 {
+			pb.RealTimeBarsOptions = realTimeBarsOptions
+		}
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.REQ_REAL_TIME_BARS + common.PROTOBUF_MSG_ID).
+			Proto(&pb)
+	} else {
+		const VERSION = 3
+		msgEnc = message.NewEncoder().Reserve(19).
+			RawUInt32(common.REQ_REAL_TIME_BARS).
+			Int(VERSION).
+			RequestID(req.ID()).
+			Marshal(opts.Contract, 1).
+			Int(opts.BarSize).
+			String(opts.WhatToShow.String()).
+			Bool(opts.OnlyRegularTradingHours).
+			Marshal(&opts.Options, 1)
+	}
+	if msgEnc.Err() != nil {
+		return nil, msgEnc.Err()
+	}
+
+	if err := c.sendRequest(msgEnc.Bytes(), req); err != nil {
+		return nil, err
+	}
+
+	bindStreamRequestContext(ctx, req, resp.Cancel)
+
+	return resp, nil
+}
+
+func (c *Client) RequestTickByTickData(ctx context.Context, opts models.TickByTickRequestOptions) (*models.TickByTickResponse, error) {
+	if opts.Contract == nil {
+		return nil, errors.New("invalid contract")
+	}
+	switch opts.TickType {
+	case models.TickByTickTypeLast:
+	case models.TickByTickTypeAllLast:
+	case models.TickByTickTypeBidAsk:
+	case models.TickByTickTypeMidPoint:
+	default:
+		return nil, errors.New("invalid tick by tick type")
+	}
+	if opts.NumberOfTicks < 0 {
+		return nil, errors.New("invalid number of ticks")
+	}
+	if !c.rp.Acquire() {
+		return nil, net.ErrClosed
+	}
+	defer c.rp.Release()
+
+	streamResp := newTickByTickStreamResponse()
+	resp := streamResp.resp
+	req := c.createRequest(RequestOptions{
+		Type:     RequestTypeRequestWithTickerID,
+		MsgCode:  common.REQ_TICK_BY_TICK_DATA,
+		Response: streamResp,
+		CompleteCB: func(req *Request, err error) {
+			streamResp.close()
+		},
+	})
+	resp.Cancel = newRequestCancelFunc(func() {
+		c.cancelTickByTickData(req)
+	})
+	resp.Err = func() error {
+		return req.Err()
+	}
+
+	var msgEnc *message.Encoder
+	if c.isProtoBufAvailable(common.REQ_TICK_BY_TICK_DATA) {
+		pb := protobuf.TickByTickRequest{
+			ReqId:         protofmt.Int32(req.ID()),
+			Contract:      opts.Contract.Proto(nil),
+			TickType:      protofmt.String(opts.TickType.String()),
+			NumberOfTicks: protofmt.Int32(int32(opts.NumberOfTicks)),
+			IgnoreSize:    protofmt.Bool(opts.IgnoreSize),
+		}
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.REQ_TICK_BY_TICK_DATA + common.PROTOBUF_MSG_ID).
+			Proto(&pb)
+	} else {
+		msgEnc = message.NewEncoder().Reserve(17).
+			RawUInt32(common.REQ_TICK_BY_TICK_DATA).
+			RequestID(req.ID()).
+			Marshal(opts.Contract, 1).
+			String(opts.TickType.String()).
+			Int(opts.NumberOfTicks).
+			Bool(opts.IgnoreSize)
+	}
+	if msgEnc.Err() != nil {
+		return nil, msgEnc.Err()
+	}
+
+	if err := c.sendRequest(msgEnc.Bytes(), req); err != nil {
+		return nil, err
+	}
+
+	bindStreamRequestContext(ctx, req, resp.Cancel)
+
 	return resp, nil
 }
 
@@ -532,10 +723,21 @@ func (c *Client) RequestMatchingSymbols(ctx context.Context, opts models.Matchin
 	})
 
 	// Build the message to send
-	msgEnc := message.NewEncoder().Reserve(3).
-		RawUInt32(common.REQ_MATCHING_SYMBOLS).
-		RequestID(req.ID()).
-		String(opts.Pattern)
+	var msgEnc *message.Encoder
+	if c.isProtoBufAvailable(common.REQ_MATCHING_SYMBOLS) {
+		pb := protobuf.MatchingSymbolsRequest{
+			ReqId:   protofmt.Int32(req.ID()),
+			Pattern: protofmt.String(opts.Pattern),
+		}
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.REQ_MATCHING_SYMBOLS + common.PROTOBUF_MSG_ID).
+			Proto(&pb)
+	} else {
+		msgEnc = message.NewEncoder().Reserve(3).
+			RawUInt32(common.REQ_MATCHING_SYMBOLS).
+			RequestID(req.ID()).
+			String(opts.Pattern)
+	}
 	if msgEnc.Err() != nil {
 		return nil, msgEnc.Err()
 	}
@@ -554,6 +756,69 @@ func (c *Client) RequestMatchingSymbols(ctx context.Context, opts models.Matchin
 	}
 
 	// Done
+	return resp, nil
+}
+
+func (c *Client) RequestSecurityDefinitionOptionParameters(
+	ctx context.Context, opts models.SecurityDefinitionOptionParametersRequestOptions,
+) (*models.SecurityDefinitionOptionParametersResponse, error) {
+	if len(opts.UnderlyingSymbol) == 0 {
+		return nil, errors.New("invalid underlying symbol")
+	}
+	if len(opts.UnderlyingSecurityType) == 0 {
+		return nil, errors.New("invalid underlying security type")
+	}
+	if opts.UnderlyingContractID <= 0 {
+		return nil, errors.New("invalid underlying contract id")
+	}
+	if !c.rp.Acquire() {
+		return nil, net.ErrClosed
+	}
+	defer c.rp.Release()
+
+	resp := &models.SecurityDefinitionOptionParametersResponse{
+		Parameters: make([]models.SecurityDefinitionOptionParameter, 0),
+	}
+	req := c.createRequest(RequestOptions{
+		Type:     RequestTypeRequestWithID,
+		MsgCode:  common.REQ_SEC_DEF_OPT_PARAMS,
+		Response: resp,
+	})
+
+	var msgEnc *message.Encoder
+	if c.isProtoBufAvailable(common.REQ_SEC_DEF_OPT_PARAMS) {
+		pb := protobuf.SecDefOptParamsRequest{
+			ReqId:             protofmt.Int32(req.ID()),
+			UnderlyingSymbol:  protofmt.String(opts.UnderlyingSymbol),
+			FutFopExchange:    protofmt.String(opts.FutFopExchange),
+			UnderlyingSecType: protofmt.String(string(opts.UnderlyingSecurityType)),
+			UnderlyingConId:   protofmt.Int32(opts.UnderlyingContractID),
+		}
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.REQ_SEC_DEF_OPT_PARAMS + common.PROTOBUF_MSG_ID).
+			Proto(&pb)
+	} else {
+		msgEnc = message.NewEncoder().Reserve(6).
+			RawUInt32(common.REQ_SEC_DEF_OPT_PARAMS).
+			RequestID(req.ID()).
+			String(opts.UnderlyingSymbol).
+			String(opts.FutFopExchange).
+			String(string(opts.UnderlyingSecurityType)).
+			Int32(opts.UnderlyingContractID)
+	}
+	if msgEnc.Err() != nil {
+		return nil, msgEnc.Err()
+	}
+
+	if err := c.sendRequest(msgEnc.Bytes(), req); err != nil {
+		return nil, err
+	}
+	defer c.reqMgr.removeRequest(req, context.Canceled)
+
+	if err := c.waitRequestCompletion(ctx, req); err != nil {
+		return nil, err
+	}
+
 	return resp, nil
 }
 
@@ -594,12 +859,17 @@ func (c *Client) RequestMarketDataType(_ context.Context, opts models.MarketData
 	if err != nil {
 		return err
 	}
+	atomic.StoreInt32(&c.marketDataType, int32(opts.Type))
 
 	// Done
 	return nil
 }
 
-func (c *Client) RequestTopMarketData(_ context.Context, opts models.TopMarketDataRequestOptions) (*models.TopMarketDataResponse, error) {
+func (c *Client) currentMarketDataType() models.MarketDataType {
+	return models.MarketDataType(atomic.LoadInt32(&c.marketDataType))
+}
+
+func (c *Client) RequestTopMarketData(ctx context.Context, opts models.TopMarketDataRequestOptions) (*models.TopMarketDataResponse, error) {
 	// Validate options
 	if opts.Contract == nil {
 		return nil, errors.New("invalid contract")
@@ -615,20 +885,19 @@ func (c *Client) RequestTopMarketData(_ context.Context, opts models.TopMarketDa
 	defer c.rp.Release()
 
 	// Create the new request and response holder
-	resp := &models.TopMarketDataResponse{
-		Channel: make(chan models.TopMarketData, 4),
-	}
+	streamResp := newTopMarketDataStreamResponse(c.currentMarketDataType())
+	resp := streamResp.resp
 	req := c.createRequest(RequestOptions{
 		Type:     RequestTypeRequestWithTickerID,
 		MsgCode:  common.REQ_MKT_DATA,
-		Response: resp,
+		Response: streamResp,
 		CompleteCB: func(req *Request, err error) {
-			close(resp.Channel)
+			streamResp.close()
 		},
 	})
-	resp.Cancel = func() {
+	resp.Cancel = newRequestCancelFunc(func() {
 		c.cancelTopMarketData(req)
-	}
+	})
 	resp.Err = func() error {
 		return req.Err()
 	}
@@ -689,11 +958,13 @@ func (c *Client) RequestTopMarketData(_ context.Context, opts models.TopMarketDa
 		return nil, err
 	}
 
+	bindStreamRequestContext(ctx, req, resp.Cancel)
+
 	// Done
 	return resp, nil
 }
 
-func (c *Client) RequestMarketDepthData(_ context.Context, opts models.MarketDepthDataRequestOptions) (*models.MarketDepthDataResponse, error) {
+func (c *Client) RequestMarketDepthData(ctx context.Context, opts models.MarketDepthDataRequestOptions) (*models.MarketDepthDataResponse, error) {
 	// Validate options
 	if opts.Contract == nil {
 		return nil, errors.New("invalid contract")
@@ -712,21 +983,19 @@ func (c *Client) RequestMarketDepthData(_ context.Context, opts models.MarketDep
 	defer c.rp.Release()
 
 	// Create the new request and response holder
-	resp := &models.MarketDepthDataResponse{
-		Book:    models.NewMarketDepthBook(opts.RowsCount),
-		Channel: make(chan models.MarketDepthData, 4),
-	}
+	streamResp := newMarketDepthDataStreamResponse(opts.RowsCount)
+	resp := streamResp.resp
 	req := c.createRequest(RequestOptions{
 		Type:     RequestTypeRequestWithTickerID,
 		MsgCode:  common.REQ_MKT_DEPTH,
-		Response: resp,
+		Response: streamResp,
 		CompleteCB: func(req *Request, err error) {
-			close(resp.Channel)
+			streamResp.close()
 		},
 	})
-	resp.Cancel = func() {
+	resp.Cancel = newRequestCancelFunc(func() {
 		c.cancelMarketDepthData(req, opts.SmartDepth)
-	}
+	})
 	resp.Err = func() error {
 		return req.Err()
 	}
@@ -764,6 +1033,8 @@ func (c *Client) RequestMarketDepthData(_ context.Context, opts models.MarketDep
 		return nil, err
 	}
 
+	bindStreamRequestContext(ctx, req, resp.Cancel)
+
 	// Done
 	return resp, nil
 }
@@ -796,6 +1067,33 @@ func (c *Client) cancelTopMarketData(req *Request) {
 	_ = c.sendMessage(msgEnc.Bytes())
 
 	// Remove the request from the manager
+	c.reqMgr.removeRequest(req, nil)
+}
+
+func (c *Client) cancelHistoricalData(req *Request) {
+	if !c.rp.Acquire() {
+		return
+	}
+	defer c.rp.Release()
+
+	var msgEnc *message.Encoder
+	if c.isProtoBufAvailable(common.CANCEL_HISTORICAL_DATA) {
+		pb := protobuf.CancelHistoricalData{
+			ReqId: protofmt.Int32(req.ID()),
+		}
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.CANCEL_HISTORICAL_DATA + common.PROTOBUF_MSG_ID).
+			Proto(&pb)
+	} else {
+		const VERSION = 1
+		msgEnc = message.NewEncoder().Reserve(3).
+			RawUInt32(common.CANCEL_HISTORICAL_DATA).
+			Int(VERSION).
+			RequestID(req.ID())
+	}
+
+	_ = c.sendMessage(msgEnc.Bytes())
+
 	c.reqMgr.removeRequest(req, nil)
 }
 
@@ -832,7 +1130,70 @@ func (c *Client) cancelMarketDepthData(req *Request, isSmartDepth bool) {
 	c.reqMgr.removeRequest(req, nil)
 }
 
+func (c *Client) cancelRealTimeBars(req *Request) {
+	if !c.rp.Acquire() {
+		return
+	}
+	defer c.rp.Release()
+
+	var msgEnc *message.Encoder
+	if c.isProtoBufAvailable(common.CANCEL_REAL_TIME_BARS) {
+		pb := protobuf.CancelRealTimeBars{
+			ReqId: protofmt.Int32(req.ID()),
+		}
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.CANCEL_REAL_TIME_BARS + common.PROTOBUF_MSG_ID).
+			Proto(&pb)
+	} else {
+		const VERSION = 1
+		msgEnc = message.NewEncoder().Reserve(3).
+			RawUInt32(common.CANCEL_REAL_TIME_BARS).
+			Int(VERSION).
+			RequestID(req.ID())
+	}
+
+	_ = c.sendMessage(msgEnc.Bytes())
+
+	c.reqMgr.removeRequest(req, nil)
+}
+
+func (c *Client) cancelTickByTickData(req *Request) {
+	if !c.rp.Acquire() {
+		return
+	}
+	defer c.rp.Release()
+
+	var msgEnc *message.Encoder
+	if c.isProtoBufAvailable(common.CANCEL_TICK_BY_TICK_DATA) {
+		pb := protobuf.CancelTickByTick{
+			ReqId: protofmt.Int32(req.ID()),
+		}
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.CANCEL_TICK_BY_TICK_DATA + common.PROTOBUF_MSG_ID).
+			Proto(&pb)
+	} else {
+		msgEnc = message.NewEncoder().Reserve(2).
+			RawUInt32(common.CANCEL_TICK_BY_TICK_DATA).
+			RequestID(req.ID())
+	}
+
+	_ = c.sendMessage(msgEnc.Bytes())
+
+	c.reqMgr.removeRequest(req, nil)
+}
+
 func (c *Client) isProtoBufAvailable(msgType uint32) bool {
 	minServerVer, ok := common.PROTOBUF_MSG_IDS[msgType]
 	return ok && c.serverVersion >= minServerVer
+}
+
+func tagValueListToMap(values models.TagValueList) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+	m := make(map[string]string, len(values))
+	for _, tv := range values {
+		m[tv.Tag] = tv.Value
+	}
+	return m
 }

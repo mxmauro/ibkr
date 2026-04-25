@@ -9,6 +9,7 @@ import (
 // -----------------------------------------------------------------------------
 
 type TopMarketDataPrice struct {
+	TopMarketDataState
 	tickType       TickType
 	Price          float64 // The actual price.
 	CanAutoExecute bool    // Specifies whether the price tick is available for automatic execution

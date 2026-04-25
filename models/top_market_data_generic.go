@@ -9,6 +9,7 @@ import (
 // -----------------------------------------------------------------------------
 
 type TopMarketDataGeneric struct {
+	TopMarketDataState
 	tickType TickType
 	Value    float64
 }

@@ -2,13 +2,6 @@ package common
 
 // -----------------------------------------------------------------------------
 
-// const (
-// UnsetInt   = math.MaxInt32
-// UnsetLong  = math.MaxInt64
-// UnsetFloat = math.MaxFloat64
-// INFINITY_STRING string  = "Infinity"
-// )
-
 const (
 	MessageDelimiter = '\x00'
 )
@@ -22,9 +15,14 @@ const (
 	ServerVersionProtobufMarketData        = 206
 	ServerVersionProtobufAccountsPositions = 207
 	ServerVersionProtobufHistoricalData    = 208
+	ServerVersionProtobufNewsData          = 209
+	ServerVersionProtobufScanData          = 210
+	ServerVersionProtobufRestMessages1     = 211
+	ServerVersionProtobufRestMessages2     = 212
+	ServerVersionProtobufRestMessages3     = 213
 
 	MinClientVersion = ServerVersionProtobuf
-	MaxClientVersion = ServerVersionProtobufAccountsPositions
+	MaxClientVersion = ServerVersionProtobufRestMessages2
 
 	MinServerVersion = ServerVersionProtobuf
 )
@@ -238,4 +236,6 @@ var PROTOBUF_MSG_IDS = map[uint32]int32{
 	REQ_HISTORICAL_TICKS:         ServerVersionProtobufHistoricalData,
 	REQ_TICK_BY_TICK_DATA:        ServerVersionProtobufHistoricalData,
 	CANCEL_TICK_BY_TICK_DATA:     ServerVersionProtobufHistoricalData,
+	REQ_SEC_DEF_OPT_PARAMS:       ServerVersionProtobufRestMessages2,
+	REQ_MATCHING_SYMBOLS:         ServerVersionProtobufRestMessages2,
 }

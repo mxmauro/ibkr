@@ -189,7 +189,7 @@ type Order struct {
 	AutoCancelParent     bool
 	Shareholder          string
 	ImbalanceOnly        bool
-	RouteMarketableToBbo bool
+	RouteMarketableToBbo int32
 	ParentPermID         int64
 
 	UsePriceMgmtAlgo         bool
@@ -208,6 +208,13 @@ type Order struct {
 	IncludeOvernight         bool
 	ManualOrderIndicator     *int32
 	Submitter                string
+	Deactivate               bool
+	PostOnly                 bool
+	AllowPreOpen             bool
+	IgnoreOpenAuction        bool
+	SeekPriceImprovement     int32
+	WhatIfType               int32
+	HedgeMaxSize             *int32
 }
 
 var (

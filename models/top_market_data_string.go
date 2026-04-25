@@ -7,6 +7,7 @@ import (
 // -----------------------------------------------------------------------------
 
 type TopMarketDataString struct {
+	TopMarketDataState
 	tickType TickType
 	Value    string
 }

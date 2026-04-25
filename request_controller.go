@@ -42,6 +42,7 @@ type NonIdRequestList struct {
 
 type WithRequestWithIdCallback func(resp interface{}) (done bool, err error)
 type WithRequestWithoutIdCallback func(resp interface{}) (err error)
+type WithFirstRequestWithoutIdCallback func(resp interface{}) (done bool, err error)
 type WithRequestWithTickerIdCallback func(resp interface{}) (done bool, err error)
 
 type RequestCompleteCallback func(req *Request, err error)
@@ -73,9 +74,7 @@ func (c *Client) createRequest(opts RequestOptions) *Request {
 		responseMtx: sync.Mutex{},
 		response:    opts.Response,
 	}
-	if opts.Type == RequestTypeRequestWithID || opts.Type == RequestTypeRequestWithoutID {
-		req.completedCh = make(chan struct{})
-	}
+	req.completedCh = make(chan struct{})
 	return req
 }
 
@@ -188,19 +187,19 @@ func (rm *RequestManager) removeAndTryCancelAllRequests(err error) {
 	}
 }
 
-func (rm *RequestManager) withRequestWithID(reqID int32, cb WithRequestWithIdCallback) {
+func (rm *RequestManager) withRequestWithID(reqID int32, cb WithRequestWithIdCallback) bool {
 	rm.mtx.Lock()
 	req, ok := rm.reqsWithID[reqID]
 	rm.mtx.Unlock()
 
 	if !ok || req.Err() != nil {
-		return
+		return false
 	}
 
 	req.responseMtx.Lock()
 	if req.response == nil {
 		req.responseMtx.Unlock()
-		return
+		return false
 	}
 	done, err := cb(req.response)
 	req.responseMtx.Unlock()
@@ -212,6 +211,7 @@ func (rm *RequestManager) withRequestWithID(reqID int32, cb WithRequestWithIdCal
 
 		req.complete(err)
 	}
+	return true
 }
 
 func (rm *RequestManager) withRequestWithoutID(msgCode int, cb WithRequestWithoutIdCallback) {
@@ -236,6 +236,44 @@ func (rm *RequestManager) withRequestWithoutID(msgCode int, cb WithRequestWithou
 	req.responseMtx.Unlock()
 
 	req.complete(err)
+}
+
+func (rm *RequestManager) withFirstRequestWithoutID(msgCode int, cb WithFirstRequestWithoutIdCallback) bool {
+	var req *Request
+
+	rm.mtx.Lock()
+	if l, ok := rm.reqsWithoutID[msgCode]; ok {
+		elem := l.List.Front()
+		if elem != nil {
+			req = elem.Value.(*Request)
+		}
+	}
+	rm.mtx.Unlock()
+
+	if req == nil || req.Err() != nil {
+		return false
+	}
+
+	req.responseMtx.Lock()
+	if req.response == nil {
+		req.responseMtx.Unlock()
+		return false
+	}
+	done, err := cb(req.response)
+	req.responseMtx.Unlock()
+
+	if done || err != nil {
+		rm.removeRequest(req, err)
+	}
+	return true
+}
+
+func (rm *RequestManager) hasRequestWithID(reqID int32) bool {
+	rm.mtx.Lock()
+	defer rm.mtx.Unlock()
+
+	req, ok := rm.reqsWithID[reqID]
+	return ok && req.Err() == nil
 }
 
 func (req *Request) Type() RequestType {

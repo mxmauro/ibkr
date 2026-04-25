@@ -7,6 +7,7 @@ import (
 // -----------------------------------------------------------------------------
 
 type TopMarketDataSize struct {
+	TopMarketDataState
 	tickType TickType
 	Size     Decimal // The actual size. US stocks have a multiplier of 100.
 }

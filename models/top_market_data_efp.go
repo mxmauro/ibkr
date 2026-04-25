@@ -9,6 +9,7 @@ import (
 // -----------------------------------------------------------------------------
 
 type TopMarketDataEFP struct {
+	TopMarketDataState
 	tickType                 TickType
 	BasisPoints              float64 // Annualized basis points, which is representative of the financing rate that can be directly compared to broker rates.
 	FormattedBasisPoints     string  // Annualized basis points as a formatted string that depicts them in percentage form.

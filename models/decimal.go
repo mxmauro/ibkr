@@ -1,20 +1,24 @@
 package models
 
 import (
+	"strconv"
+
 	"github.com/mxmauro/ibkr/utils/encoders/message"
 	"github.com/mxmauro/ibkr/utils/encoders/protofmt"
-	"github.com/robaho/fixed"
+	"github.com/quagmt/udecimal"
 )
 
 // -----------------------------------------------------------------------------
 
-type Decimal fixed.Fixed
+type Decimal struct {
+	value udecimal.Decimal
+}
 
 // -----------------------------------------------------------------------------
 
 var (
-	DecimalZero = Decimal(fixed.ZERO)
-	DecimalOne  = Decimal(fixed.NewF(1))
+	DecimalZero = Decimal{value: udecimal.MustFromInt64(0, 0)}
+	DecimalOne  = Decimal{value: udecimal.MustFromInt64(1, 0)}
 )
 
 // -----------------------------------------------------------------------------
@@ -23,22 +27,22 @@ func NewDecimalFromStringWithErr(s string) (Decimal, error) {
 	if s == "" {
 		return DecimalZero, nil
 	}
-	f, err := fixed.NewSErr(s)
+	f, err := udecimal.Parse(s)
 	if err != nil {
 		return DecimalZero, err
 	}
-	return Decimal(f), nil
+	return Decimal{value: f}, nil
 }
 
 func NewDecimalMaxFromStringWithErr(s string) (*Decimal, error) {
 	if isMaxDecimal(s) {
 		return nil, nil
 	}
-	f, err := fixed.NewSErr(s)
+	f, err := udecimal.Parse(s)
 	if err != nil {
 		return nil, err
 	}
-	dec := Decimal(f)
+	dec := Decimal{value: f}
 	return &dec, nil
 }
 
@@ -100,7 +104,7 @@ func (d *Decimal) String() string {
 	if d == nil {
 		return ""
 	}
-	return fixed.Fixed(*d).String()
+	return d.value.String()
 }
 
 func (d *Decimal) StringMax() string {
@@ -111,11 +115,25 @@ func (d *Decimal) StringMax() string {
 }
 
 func (d *Decimal) Int64() int64 {
-	return fixed.Fixed(*d).Int()
+	if d == nil {
+		return 0
+	}
+	v, err := d.value.Int64()
+	if err != nil {
+		return 0
+	}
+	return v
 }
 
 func (d *Decimal) Float() float64 {
-	return fixed.Fixed(*d).Float()
+	if d == nil {
+		return 0
+	}
+	rounded := d.value
+	if rounded.PrecUint() > 15 {
+		rounded = rounded.RoundBank(15)
+	}
+	return rounded.InexactFloat64()
 }
 
 func (d *Decimal) EncodeMessage(_ int) ([]byte, error) {
@@ -125,5 +143,10 @@ func (d *Decimal) EncodeMessage(_ int) ([]byte, error) {
 }
 
 func isMaxDecimal(s string) bool {
-	return s == "" || s == "2147483647" || s == "9223372036854775807" || s == "1.7976931348623157E308" || s == "-9223372036854775808"
+	if s == "" || s == "2147483647" || s == "9223372036854775807" || s == "1.7976931348623157E308" || s == "-9223372036854775808" {
+		return true
+	}
+
+	f, err := strconv.ParseFloat(s, 64)
+	return err == nil && (f == 1.7976931348623157e+308 || f == -1.7976931348623157e+308)
 }

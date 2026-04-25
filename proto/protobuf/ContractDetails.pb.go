@@ -86,8 +86,15 @@ type ContractDetails struct {
 	NextOptionPartial       *bool                  `protobuf:"varint,56,opt,name=nextOptionPartial,proto3,oneof" json:"nextOptionPartial,omitempty"`
 	BondNotes               *string                `protobuf:"bytes,57,opt,name=bondNotes,proto3,oneof" json:"bondNotes,omitempty"`
 	IneligibilityReasonList []*IneligibilityReason `protobuf:"bytes,58,rep,name=ineligibilityReasonList,proto3" json:"ineligibilityReasonList,omitempty"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
+	// event contract fields
+	EventContract1            *string `protobuf:"bytes,59,opt,name=eventContract1,proto3,oneof" json:"eventContract1,omitempty"`
+	EventContractDescription1 *string `protobuf:"bytes,60,opt,name=eventContractDescription1,proto3,oneof" json:"eventContractDescription1,omitempty"`
+	EventContractDescription2 *string `protobuf:"bytes,61,opt,name=eventContractDescription2,proto3,oneof" json:"eventContractDescription2,omitempty"`
+	MinAlgoSize               *string `protobuf:"bytes,62,opt,name=minAlgoSize,proto3,oneof" json:"minAlgoSize,omitempty"`
+	LastPricePrecision        *string `protobuf:"bytes,63,opt,name=lastPricePrecision,proto3,oneof" json:"lastPricePrecision,omitempty"`
+	LastSizePrecision         *string `protobuf:"bytes,64,opt,name=lastSizePrecision,proto3,oneof" json:"lastSizePrecision,omitempty"`
+	unknownFields             protoimpl.UnknownFields
+	sizeCache                 protoimpl.SizeCache
 }
 
 func (x *ContractDetails) Reset() {
@@ -526,11 +533,53 @@ func (x *ContractDetails) GetIneligibilityReasonList() []*IneligibilityReason {
 	return nil
 }
 
+func (x *ContractDetails) GetEventContract1() string {
+	if x != nil && x.EventContract1 != nil {
+		return *x.EventContract1
+	}
+	return ""
+}
+
+func (x *ContractDetails) GetEventContractDescription1() string {
+	if x != nil && x.EventContractDescription1 != nil {
+		return *x.EventContractDescription1
+	}
+	return ""
+}
+
+func (x *ContractDetails) GetEventContractDescription2() string {
+	if x != nil && x.EventContractDescription2 != nil {
+		return *x.EventContractDescription2
+	}
+	return ""
+}
+
+func (x *ContractDetails) GetMinAlgoSize() string {
+	if x != nil && x.MinAlgoSize != nil {
+		return *x.MinAlgoSize
+	}
+	return ""
+}
+
+func (x *ContractDetails) GetLastPricePrecision() string {
+	if x != nil && x.LastPricePrecision != nil {
+		return *x.LastPricePrecision
+	}
+	return ""
+}
+
+func (x *ContractDetails) GetLastSizePrecision() string {
+	if x != nil && x.LastSizePrecision != nil {
+		return *x.LastSizePrecision
+	}
+	return ""
+}
+
 var File_ContractDetails_proto protoreflect.FileDescriptor
 
 const file_ContractDetails_proto_rawDesc = "" +
 	"\n" +
-	"\x15ContractDetails.proto\x12\bprotobuf\x1a\x19IneligibilityReason.proto\"\xa1\x1c\n" +
+	"\x15ContractDetails.proto\x12\bprotobuf\x1a\x19IneligibilityReason.proto\"\xef\x1f\n" +
 	"\x0fContractDetails\x12#\n" +
 	"\n" +
 	"marketName\x18\x01 \x01(\tH\x00R\n" +
@@ -607,7 +656,13 @@ const file_ContractDetails_proto_rawDesc = "" +
 	"\x0enextOptionType\x187 \x01(\tH5R\x0enextOptionType\x88\x01\x01\x121\n" +
 	"\x11nextOptionPartial\x188 \x01(\bH6R\x11nextOptionPartial\x88\x01\x01\x12!\n" +
 	"\tbondNotes\x189 \x01(\tH7R\tbondNotes\x88\x01\x01\x12W\n" +
-	"\x17ineligibilityReasonList\x18: \x03(\v2\x1d.protobuf.IneligibilityReasonR\x17ineligibilityReasonList\x1a<\n" +
+	"\x17ineligibilityReasonList\x18: \x03(\v2\x1d.protobuf.IneligibilityReasonR\x17ineligibilityReasonList\x12+\n" +
+	"\x0eeventContract1\x18; \x01(\tH8R\x0eeventContract1\x88\x01\x01\x12A\n" +
+	"\x19eventContractDescription1\x18< \x01(\tH9R\x19eventContractDescription1\x88\x01\x01\x12A\n" +
+	"\x19eventContractDescription2\x18= \x01(\tH:R\x19eventContractDescription2\x88\x01\x01\x12%\n" +
+	"\vminAlgoSize\x18> \x01(\tH;R\vminAlgoSize\x88\x01\x01\x123\n" +
+	"\x12lastPricePrecision\x18? \x01(\tH<R\x12lastPricePrecision\x88\x01\x01\x121\n" +
+	"\x11lastSizePrecision\x18@ \x01(\tH=R\x11lastSizePrecision\x88\x01\x01\x1a<\n" +
 	"\x0eSecIdListEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\r\n" +
@@ -672,7 +727,13 @@ const file_ContractDetails_proto_rawDesc = "" +
 	"\x0f_nextOptionTypeB\x14\n" +
 	"\x12_nextOptionPartialB\f\n" +
 	"\n" +
-	"_bondNotesBp\n" +
+	"_bondNotesB\x11\n" +
+	"\x0f_eventContract1B\x1c\n" +
+	"\x1a_eventContractDescription1B\x1c\n" +
+	"\x1a_eventContractDescription2B\x0e\n" +
+	"\f_minAlgoSizeB\x15\n" +
+	"\x13_lastPricePrecisionB\x14\n" +
+	"\x12_lastSizePrecisionBp\n" +
 	"\fcom.protobufB\x14ContractDetailsProtoP\x01Z\n" +
 	".;protobuf\xa2\x02\x03PXX\xaa\x02\bProtobuf\xca\x02\bProtobuf\xe2\x02\x14Protobuf\\GPBMetadata\xea\x02\bProtobufb\x06proto3"
 

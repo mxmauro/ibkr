@@ -8,6 +8,7 @@ import (
 // -----------------------------------------------------------------------------
 
 type TopMarketDataTimestamp struct {
+	TopMarketDataState
 	tickType  TickType
 	Timestamp time.Time
 }

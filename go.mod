@@ -9,3 +9,5 @@ require (
 	github.com/robaho/fixed v0.0.0-20250130054609-fd0e46fcd988
 	google.golang.org/protobuf v1.36.6
 )
+
+require github.com/quagmt/udecimal v1.10.0 // indirect

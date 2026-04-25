@@ -163,7 +163,12 @@ func (c *Connection) handleRead() {
 		if c.rp.Acquire() == false {
 			return
 		}
-		c.msgCh <- msg
+		select {
+		case c.msgCh <- msg:
+		case <-c.rp.Done():
+			c.rp.Release()
+			return
+		}
 		c.rp.Release()
 	}
 }

@@ -13,33 +13,39 @@ import (
 
 //goland:noinspection SpellCheckingInspection
 type ContractDetails struct {
-	Contract               *Contract
-	MarketName             string
-	MinTick                *float64
-	OrderTypes             string
-	ValidExchanges         string
-	PriceMagnifier         *int32
-	UnderConID             *int32
-	LongName               string
-	ContractMonth          string
-	Industry               string
-	Category               string
-	Subcategory            string
-	TimeZoneID             string
-	TradingHours           string
-	LiquidHours            string
-	EVRule                 string
-	EVMultiplier           float64
-	AggGroup               int32
-	UnderSymbol            string
-	UnderSecType           SecurityType
-	MarketRuleIDs          string
-	RealExpirationDate     string
-	LastTradeTime          string
-	StockType              string
-	MinSize                *Decimal
-	SizeIncrement          *Decimal
-	SuggestedSizeIncrement *Decimal
+	Contract                  *Contract
+	MarketName                string
+	MinTick                   *float64
+	OrderTypes                string
+	ValidExchanges            string
+	PriceMagnifier            *int32
+	UnderConID                *int32
+	LongName                  string
+	ContractMonth             string
+	Industry                  string
+	Category                  string
+	Subcategory               string
+	TimeZoneID                string
+	TradingHours              string
+	LiquidHours               string
+	EVRule                    string
+	EVMultiplier              float64
+	AggGroup                  int32
+	UnderSymbol               string
+	UnderSecType              SecurityType
+	MarketRuleIDs             string
+	RealExpirationDate        string
+	LastTradeTime             string
+	StockType                 string
+	MinSize                   *Decimal
+	SizeIncrement             *Decimal
+	SuggestedSizeIncrement    *Decimal
+	EventContract1            string
+	EventContractDescription1 string
+	EventContractDescription2 string
+	MinAlgoSize               string
+	LastPricePrecision        string
+	LastSizePrecision         string
 
 	SecIDList TagValueList
 
@@ -130,6 +136,12 @@ func NewContractDetailsFromProtobufDecoder(
 	cd.MinSize = NewDecimalMaxFromProtobufDecoder(msgDec, pb.MinSize)
 	cd.SizeIncrement = NewDecimalMaxFromProtobufDecoder(msgDec, pb.SizeIncrement)
 	cd.SuggestedSizeIncrement = NewDecimalMaxFromProtobufDecoder(msgDec, pb.SuggestedSizeIncrement)
+	cd.EventContract1 = msgDec.String(pb.EventContract1)
+	cd.EventContractDescription1 = msgDec.String(pb.EventContractDescription1)
+	cd.EventContractDescription2 = msgDec.String(pb.EventContractDescription2)
+	cd.MinAlgoSize = msgDec.String(pb.MinAlgoSize)
+	cd.LastPricePrecision = msgDec.String(pb.LastPricePrecision)
+	cd.LastSizePrecision = msgDec.String(pb.LastSizePrecision)
 	// bond fields
 	cd.Cusip = msgDec.String(pb.Cusip)
 	cd.Ratings = msgDec.String(pb.Ratings)

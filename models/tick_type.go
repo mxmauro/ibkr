@@ -129,6 +129,32 @@ func (tt TickType) IsPrice() bool {
 	return false
 }
 
+func (tt TickType) IsDelayed() bool {
+	switch tt {
+	case TickTypeDelayedBid,
+		TickTypeDelayedAsk,
+		TickTypeDelayedLast,
+		TickTypeDelayedBidSize,
+		TickTypeDelayedAskSize,
+		TickTypeDelayedLastSize,
+		TickTypeDelayedHigh,
+		TickTypeDelayedLow,
+		TickTypeDelayedVolume,
+		TickTypeDelayedClose,
+		TickTypeDelayedOpen,
+		TickTypeDelayedBidOption,
+		TickTypeDelayedAskOption,
+		TickTypeDelayedLastOption,
+		TickTypeDelayedModelOptionComputation,
+		TickTypeDelayedLastTimestamp,
+		TickTypeDelayedHalted,
+		TickTypeDelayedYieldBid,
+		TickTypeDelayedYieldAsk:
+		return true
+	}
+	return false
+}
+
 func (tt TickType) String() string {
 	switch tt {
 	case TickTypeUnset:

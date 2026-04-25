@@ -22,10 +22,15 @@ type HistoricalDataRequestOptions struct {
 	BarSize                 BarSize
 	WhatToShow              WhatToShow
 	OnlyRegularTradingHours bool
+	KeepUpToDate            bool
+	ChartOptions            TagValueList
 }
 
 type HistoricalDataResponse struct {
-	Bars []HistoricalDataBar
+	Bars    []HistoricalDataBar
+	Channel chan HistoricalDataBar
+	Cancel  CancelFunc
+	Err     ErrFunc
 }
 
 type HistoricalTicksRequestOptions struct {
@@ -88,6 +93,44 @@ type MarketDepthDataResponse struct {
 	Book    *MarketDepthBook
 	Cancel  CancelFunc
 	Err     ErrFunc
+}
+
+type RealTimeBarsRequestOptions struct {
+	Contract                *Contract
+	BarSize                 int
+	WhatToShow              WhatToShow
+	OnlyRegularTradingHours bool
+	Options                 TagValueList
+}
+
+type RealTimeBarsResponse struct {
+	Channel chan RealTimeBar
+	Cancel  CancelFunc
+	Err     ErrFunc
+}
+
+type TickByTickRequestOptions struct {
+	Contract      *Contract
+	TickType      TickByTickType
+	NumberOfTicks int
+	IgnoreSize    bool
+}
+
+type TickByTickResponse struct {
+	Channel chan TickByTickData
+	Cancel  CancelFunc
+	Err     ErrFunc
+}
+
+type SecurityDefinitionOptionParametersRequestOptions struct {
+	UnderlyingSymbol       string
+	FutFopExchange         string
+	UnderlyingSecurityType SecurityType
+	UnderlyingContractID   int32
+}
+
+type SecurityDefinitionOptionParametersResponse struct {
+	Parameters []SecurityDefinitionOptionParameter
 }
 
 type HeadTimestampRequestOptions struct {

@@ -139,3 +139,10 @@ func (oc *orderConditionBase) String() string {
 	}
 	return "<OR>"
 }
+
+func OrderConditionFields(cond OrderCondition) []any {
+	if cond == nil {
+		return nil
+	}
+	return cond.makeFields()
+}

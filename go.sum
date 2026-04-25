@@ -8,6 +8,8 @@ github.com/mxmauro/resetevent v0.1.2 h1:6NeF/2v0bWDVVuXdl5o5Y4yXR9T24MppXvURMhNH
 github.com/mxmauro/resetevent v0.1.2/go.mod h1:ROHItKURwt5mvdzFUR165S2fGtrVV3PffPYIITmrzhA=
 github.com/mxmauro/ringbuffer v0.1.0 h1:n7++71Xnah9YQtf/qGsCkax/MPZZmnxqinETcaQgTlw=
 github.com/mxmauro/ringbuffer v0.1.0/go.mod h1:VIJQ6gOwYIi4sfLxYFtX8SD35mkn17fwAzV8dBK9KZA=
+github.com/quagmt/udecimal v1.10.0 h1:r8VgL1ns0HruRrTX4aRRIE4J5FGdjd1sGRwG7eZGx7A=
+github.com/quagmt/udecimal v1.10.0/go.mod h1:ScmJ/xTGZcEoYiyMMzgDLn79PEJHcMBiJ4NNRT3FirA=
 github.com/robaho/fixed v0.0.0-20250130054609-fd0e46fcd988 h1:aHw3VW2Oe8Q2Icq1eUradihZqn/zBVlNQonXw+swAgM=
 github.com/robaho/fixed v0.0.0-20250130054609-fd0e46fcd988/go.mod h1:gOuZr6norIEHlPghhACq3f8PL6ZFF5uJVMOgh2/M7xQ=
 github.com/shopspring/decimal v1.4.0 h1:bxl37RwXBklmTi0C79JfXCEBD1cqqHt0bbgBAGFp81k=
