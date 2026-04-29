@@ -12,18 +12,21 @@ import (
 
 // -----------------------------------------------------------------------------
 
+// Encoder builds legacy delimited or protobuf-framed outbound messages.
 type Encoder struct {
 	buf bytes.Buffer
 	raw bool
 	err error
 }
 
+// EncoderMarshaller is implemented by values that can encode themselves into the legacy wire format.
 type EncoderMarshaller interface {
 	EncodeMessage(mode int) ([]byte, error)
 }
 
 // -----------------------------------------------------------------------------
 
+// NewEncoder allocates an encoder for framed outbound messages.
 func NewEncoder() *Encoder {
 	e := Encoder{
 		buf: bytes.Buffer{},
@@ -36,6 +39,7 @@ func NewEncoder() *Encoder {
 	return &e
 }
 
+// NewRawEncoder allocates an encoder that omits the 4-byte message length header.
 func NewRawEncoder() *Encoder {
 	e := Encoder{
 		buf: bytes.Buffer{},
@@ -46,24 +50,29 @@ func NewRawEncoder() *Encoder {
 	return &e
 }
 
+// Reserve grows the backing buffer using an estimated field count.
 func (e *Encoder) Reserve(estimatedFieldsCount int) *Encoder {
 	e.buf.Grow(4 + 8*estimatedFieldsCount)
 	// Done
 	return e
 }
 
+// RequestID encodes an IB request identifier as a delimited string field.
 func (e *Encoder) RequestID(v int32) *Encoder {
 	return e.String(strconv.Itoa(int(v)))
 }
 
+// Int encodes an int as a delimited string field.
 func (e *Encoder) Int(v int) *Encoder {
 	return e.String(strconv.FormatInt(int64(v), 10))
 }
 
+// Int32 encodes an int32 as a delimited string field.
 func (e *Encoder) Int32(v int32) *Encoder {
 	return e.String(strconv.FormatInt(int64(v), 10))
 }
 
+// Int32Max encodes an optional int32 as a delimited string field.
 func (e *Encoder) Int32Max(v *int32) *Encoder {
 	if v == nil {
 		if e.err == nil {
@@ -74,10 +83,12 @@ func (e *Encoder) Int32Max(v *int32) *Encoder {
 	return e.String(strconv.FormatInt(int64(*v), 10))
 }
 
+// Int64 encodes an int64 as a delimited string field.
 func (e *Encoder) Int64(v int64) *Encoder {
 	return e.String(strconv.FormatInt(v, 10))
 }
 
+// Int64Max encodes an optional int64 as a delimited string field.
 func (e *Encoder) Int64Max(v *int64) *Encoder {
 	if v == nil {
 		if e.err == nil {
@@ -88,6 +99,7 @@ func (e *Encoder) Int64Max(v *int64) *Encoder {
 	return e.String(strconv.FormatInt(*v, 10))
 }
 
+// Float encodes a float64 as a delimited string field.
 func (e *Encoder) Float(v float64) *Encoder {
 	if math.IsNaN(v) || math.IsInf(v, 0) {
 		return e.String("")
@@ -95,6 +107,7 @@ func (e *Encoder) Float(v float64) *Encoder {
 	return e.String(strconv.FormatFloat(v, 'f', -1, 64))
 }
 
+// FloatMax encodes an optional float64 as a delimited string field.
 func (e *Encoder) FloatMax(v *float64) *Encoder {
 	if v == nil || math.IsNaN(*v) || math.IsInf(*v, 0) {
 		return e.String("")
@@ -102,6 +115,7 @@ func (e *Encoder) FloatMax(v *float64) *Encoder {
 	return e.String(strconv.FormatFloat(*v, 'f', -1, 64))
 }
 
+// String encodes a string field and appends the protocol delimiter.
 func (e *Encoder) String(v string) *Encoder {
 	if e.err != nil {
 		return e
@@ -113,6 +127,7 @@ func (e *Encoder) String(v string) *Encoder {
 	return e
 }
 
+// Bool encodes a bool as 1 or 0 followed by the protocol delimiter.
 func (e *Encoder) Bool(v bool) *Encoder {
 	if e.err != nil {
 		return e
@@ -128,6 +143,7 @@ func (e *Encoder) Bool(v bool) *Encoder {
 	return e
 }
 
+// AddDelim appends an empty delimited field.
 func (e *Encoder) AddDelim() *Encoder {
 	if e.err != nil {
 		return e
@@ -136,6 +152,7 @@ func (e *Encoder) AddDelim() *Encoder {
 	return e
 }
 
+// Marshal appends a legacy wire representation produced by v.
 func (e *Encoder) Marshal(v EncoderMarshaller, mode int) *Encoder {
 	var encoded []byte
 
@@ -149,6 +166,7 @@ func (e *Encoder) Marshal(v EncoderMarshaller, mode int) *Encoder {
 	return e
 }
 
+// Proto appends a marshaled protobuf payload to the current message.
 func (e *Encoder) Proto(v proto.Message) *Encoder {
 	var encoded []byte
 
@@ -162,6 +180,7 @@ func (e *Encoder) Proto(v proto.Message) *Encoder {
 	return e
 }
 
+// Raw appends raw bytes to the current message buffer.
 func (e *Encoder) Raw(v []byte) *Encoder {
 	if e.err != nil {
 		return e
@@ -170,6 +189,7 @@ func (e *Encoder) Raw(v []byte) *Encoder {
 	return e
 }
 
+// RawUInt32 appends an unsigned 32-bit integer using big-endian byte order.
 func (e *Encoder) RawUInt32(v uint32) *Encoder {
 	var data [4]byte
 
@@ -181,6 +201,7 @@ func (e *Encoder) RawUInt32(v uint32) *Encoder {
 	return e
 }
 
+// RawInt64 appends a signed 64-bit integer using big-endian byte order.
 func (e *Encoder) RawInt64(v int64) *Encoder {
 	var data [8]byte
 
@@ -192,6 +213,7 @@ func (e *Encoder) RawInt64(v int64) *Encoder {
 	return e
 }
 
+// Err returns the first encoding error encountered by the encoder.
 func (e *Encoder) Err() error {
 	return e.err
 }

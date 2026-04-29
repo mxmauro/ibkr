@@ -10,6 +10,7 @@ import (
 
 // -----------------------------------------------------------------------------
 
+// Decimal wraps the decimal type used for IB quantities and prices.
 type Decimal struct {
 	value udecimal.Decimal
 }
@@ -17,12 +18,15 @@ type Decimal struct {
 // -----------------------------------------------------------------------------
 
 var (
+	// DecimalZero is the canonical zero decimal value.
 	DecimalZero = Decimal{value: udecimal.MustFromInt64(0, 0)}
-	DecimalOne  = Decimal{value: udecimal.MustFromInt64(1, 0)}
+	// DecimalOne is the canonical one decimal value.
+	DecimalOne = Decimal{value: udecimal.MustFromInt64(1, 0)}
 )
 
 // -----------------------------------------------------------------------------
 
+// NewDecimalFromStringWithErr parses a decimal string into a Decimal.
 func NewDecimalFromStringWithErr(s string) (Decimal, error) {
 	if s == "" {
 		return DecimalZero, nil
@@ -34,6 +38,7 @@ func NewDecimalFromStringWithErr(s string) (Decimal, error) {
 	return Decimal{value: f}, nil
 }
 
+// NewDecimalMaxFromStringWithErr parses a decimal string, returning nil for IB max sentinels.
 func NewDecimalMaxFromStringWithErr(s string) (*Decimal, error) {
 	if isMaxDecimal(s) {
 		return nil, nil
@@ -46,6 +51,7 @@ func NewDecimalMaxFromStringWithErr(s string) (*Decimal, error) {
 	return &dec, nil
 }
 
+// NewDecimalFromMessageDecoder reads a decimal from the legacy message decoder.
 func NewDecimalFromMessageDecoder(msgDec *message.Decoder) Decimal {
 	data := msgDec.String()
 
@@ -58,6 +64,7 @@ func NewDecimalFromMessageDecoder(msgDec *message.Decoder) Decimal {
 	return dec
 }
 
+// NewDecimalMaxFromMessageDecoder reads an optional decimal from the legacy message decoder.
 func NewDecimalMaxFromMessageDecoder(msgDec *message.Decoder) *Decimal {
 	data := msgDec.String()
 
@@ -70,6 +77,7 @@ func NewDecimalMaxFromMessageDecoder(msgDec *message.Decoder) *Decimal {
 	return dec
 }
 
+// NewDecimalFromProtobufDecoder reads a decimal from a protobuf string field.
 func NewDecimalFromProtobufDecoder(msgDec *protofmt.Decoder, val *string) Decimal {
 	// Handle empty value
 	if val == nil {
@@ -85,6 +93,7 @@ func NewDecimalFromProtobufDecoder(msgDec *protofmt.Decoder, val *string) Decima
 	return dec
 }
 
+// NewDecimalMaxFromProtobufDecoder reads an optional decimal from a protobuf string field.
 func NewDecimalMaxFromProtobufDecoder(msgDec *protofmt.Decoder, val *string) *Decimal {
 	// Handle empty value
 	if val == nil {
@@ -100,6 +109,7 @@ func NewDecimalMaxFromProtobufDecoder(msgDec *protofmt.Decoder, val *string) *De
 	return dec
 }
 
+// String returns the decimal in plain string form.
 func (d *Decimal) String() string {
 	if d == nil {
 		return ""
@@ -107,6 +117,7 @@ func (d *Decimal) String() string {
 	return d.value.String()
 }
 
+// StringMax returns the decimal string or an empty string when the value is nil.
 func (d *Decimal) StringMax() string {
 	if d == nil {
 		return ""
@@ -114,6 +125,7 @@ func (d *Decimal) StringMax() string {
 	return d.String()
 }
 
+// Int64 converts the decimal to int64, returning zero on conversion failure.
 func (d *Decimal) Int64() int64 {
 	if d == nil {
 		return 0
@@ -125,6 +137,7 @@ func (d *Decimal) Int64() int64 {
 	return v
 }
 
+// Float converts the decimal to float64 using banker's rounding when needed.
 func (d *Decimal) Float() float64 {
 	if d == nil {
 		return 0
@@ -136,6 +149,7 @@ func (d *Decimal) Float() float64 {
 	return rounded.InexactFloat64()
 }
 
+// EncodeMessage serializes the decimal into the legacy delimited wire format.
 func (d *Decimal) EncodeMessage(_ int) ([]byte, error) {
 	msgEnc := message.NewRawEncoder()
 	msgEnc.String(d.String())

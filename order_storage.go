@@ -8,6 +8,7 @@ import (
 
 // -----------------------------------------------------------------------------
 
+// OrderStore persists order lifecycle events emitted by the client.
 type OrderStore interface {
 	CreateOrder(contract *models.Contract, order *models.Order)
 	SetOrderPermanentID(orderID int32, clientID int32, permID int64)

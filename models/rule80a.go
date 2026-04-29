@@ -16,29 +16,3 @@ const (
 	Rule80aAgencyPT             Rule80A = "Y"
 	Rule80aAgentOtherMemberPT   Rule80A = "N"
 )
-
-// -----------------------------------------------------------------------------
-
-func NewRule80aFromString(rule80a string) Rule80A {
-	switch rule80a {
-	case string(Rule80aIndividual):
-		return Rule80aIndividual
-	case string(Rule80aAgency):
-		return Rule80aAgency
-	case string(Rule80aAgentOtherMember):
-		return Rule80aAgentOtherMember
-	case string(Rule80aIndividualPTIA):
-		return Rule80aIndividualPTIA
-	case string(Rule80aAgencyPTIA):
-		return Rule80aAgencyPTIA
-	case string(Rule80aAgentOtherMemberPTIA):
-		return Rule80aAgentOtherMemberPTIA
-	case string(Rule80aIndividualPT):
-		return Rule80aIndividualPT
-	case string(Rule80aAgencyPT):
-		return Rule80aAgencyPT
-	case string(Rule80aAgentOtherMemberPT):
-		return Rule80aAgentOtherMemberPT
-	}
-	return Rule80aNone
-}

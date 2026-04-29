@@ -12,10 +12,12 @@ import (
 
 // -----------------------------------------------------------------------------
 
+// EventsLogger formats event callbacks into plain-text log lines.
 type EventsLogger struct {
 	cb EventsLoggerCallback
 }
 
+// EventsLoggerCallback receives a formatted log line.
 type EventsLoggerCallback func(msg string)
 
 type eventsLoggerBuilder struct {
@@ -26,6 +28,7 @@ type eventsLoggerBuilder struct {
 
 // -----------------------------------------------------------------------------
 
+// NewIncomingMessageLogger returns an Events implementation that writes formatted callbacks to cb.
 func NewIncomingMessageLogger(cb EventsLoggerCallback) Events {
 	return &EventsLogger{
 		cb: cb,
@@ -725,6 +728,7 @@ func (el *EventsLogger) UserInfo(reqID int64, whiteBrandingId string) {
 }
 */
 
+// build allocates a new builder for a single log line.
 func (el *EventsLogger) build() *eventsLoggerBuilder {
 	b := &eventsLoggerBuilder{
 		cb:        el.cb,
@@ -839,6 +843,7 @@ func (b *eventsLoggerBuilder) newLine() *eventsLoggerBuilder {
 	return b
 }
 
+// msg finalizes the current log line and emits it through the configured callback.
 func (b *eventsLoggerBuilder) msg(m string) {
 	s := "IB" + m + b.sb.String()
 	b.cb(s)

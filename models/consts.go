@@ -2,6 +2,7 @@ package models
 
 // -----------------------------------------------------------------------------
 
+// WhatToShow selects which market data series IB should return for a request.
 type WhatToShow int
 
 const (
@@ -15,6 +16,7 @@ const (
 	WhatToShowSchedule
 )
 
+// String returns the IB wire value for the requested data series.
 func (wts WhatToShow) String() string {
 	switch wts {
 	case WhatToShowTrades:
@@ -39,6 +41,7 @@ func (wts WhatToShow) String() string {
 
 // -----------------------------------------------------------------------------
 
+// BarSize describes the aggregation period of a historical or real-time bar.
 type BarSize int
 
 const (
@@ -62,6 +65,7 @@ const (
 	BarSizeOneMonth
 )
 
+// String returns the IB wire value for the bar size.
 func (bs BarSize) String() string {
 	switch bs {
 	case BarSizeOneSecond:
@@ -104,6 +108,7 @@ func (bs BarSize) String() string {
 	return ""
 }
 
+// Seconds returns the nominal bar duration in seconds.
 func (bs BarSize) Seconds() int64 {
 	switch bs {
 	case BarSizeOneSecond:
@@ -148,6 +153,7 @@ func (bs BarSize) Seconds() int64 {
 
 // -----------------------------------------------------------------------------
 
+// DurationUnit selects the unit used when building historical duration strings.
 type DurationUnit int
 
 const (
@@ -158,6 +164,7 @@ const (
 	DurationUnitYears
 )
 
+// String returns the IB wire value for the duration unit.
 func (du DurationUnit) String() string {
 	switch du {
 	case DurationUnitSeconds:

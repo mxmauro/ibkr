@@ -36,6 +36,7 @@ type Execution struct {
 
 // -----------------------------------------------------------------------------
 
+// NewExecution allocates an empty execution record with default enum values.
 func NewExecution() *Execution {
 	e := Execution{
 		OptExerciseOrLapse: OptionExerciseNone,
@@ -43,6 +44,7 @@ func NewExecution() *Execution {
 	return &e
 }
 
+// String returns a human-readable summary of the execution.
 func (e *Execution) String() string {
 	return fmt.Sprintf(
 		"ExecId: %s, Time: %s, Account: %s, Exchange: %s, Side: %s, Shares: %s, Price: %s, PermId: %s, ClientId: %s, OrderId: %s, Liquidation: %s, CumQty: %s, AvgPrice: %s, OrderRef: %s, EvRule: %s, EvMultiplier: %s, ModelCode: %s, LastLiquidity: %s,  PendingPriceRevision: %s, Submitter: %s, OptionExerciseType: %s",

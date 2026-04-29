@@ -7,6 +7,7 @@ import (
 
 // -----------------------------------------------------------------------------
 
+// MarketDepthDataOperation describes how a depth entry changes the book.
 type MarketDepthDataOperation int
 
 const (
@@ -16,6 +17,7 @@ const (
 	MarketDepthDataOperationClear = -1
 )
 
+// MarketDepthData describes a single depth-of-book update.
 type MarketDepthData struct {
 	Position  int
 	Operation MarketDepthDataOperation
@@ -23,12 +25,14 @@ type MarketDepthData struct {
 	Entry     DepthMarketBookEntry
 }
 
+// MarketDepthBook stores the current bid and ask ladders for a subscription.
 type MarketDepthBook struct {
 	Size int
 	Bids []DepthMarketBookEntry
 	Asks []DepthMarketBookEntry
 }
 
+// DepthMarketBookEntry represents one price level in the depth book.
 type DepthMarketBookEntry struct {
 	Price float64
 	Size  Decimal
@@ -36,6 +40,7 @@ type DepthMarketBookEntry struct {
 
 // -----------------------------------------------------------------------------
 
+// NewMarketDepthBook allocates a depth book with the requested maximum depth.
 func NewMarketDepthBook(maxDepth int) *MarketDepthBook {
 	return &MarketDepthBook{
 		Size: maxDepth,
@@ -44,6 +49,7 @@ func NewMarketDepthBook(maxDepth int) *MarketDepthBook {
 	}
 }
 
+// UpdateBook applies a single depth update to the current book snapshot.
 func (book *MarketDepthBook) UpdateBook(data MarketDepthData) {
 	var bookSide *[]DepthMarketBookEntry
 
@@ -54,6 +60,7 @@ func (book *MarketDepthBook) UpdateBook(data MarketDepthData) {
 		return
 	}
 
+	// Pick the side being updated before applying the operation-specific logic.
 	if data.BidSide {
 		bookSide = &book.Bids
 	} else {
@@ -89,6 +96,7 @@ func (book *MarketDepthBook) UpdateBook(data MarketDepthData) {
 	}
 }
 
+// TableString formats the current depth book as a text table.
 func (book *MarketDepthBook) TableString() string {
 	bidPriceStrings := make([]string, len(book.Bids))
 	bidSizeStrings := make([]string, len(book.Bids))

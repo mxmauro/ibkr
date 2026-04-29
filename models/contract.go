@@ -38,10 +38,12 @@ type Contract struct {
 
 // -----------------------------------------------------------------------------
 
+// NewContract allocates an empty contract definition.
 func NewContract() *Contract {
 	return &Contract{}
 }
 
+// NewContractFromProtobufDecoder decodes a contract from its protobuf representation.
 func NewContractFromProtobufDecoder(msgDec *protofmt.Decoder, pb *protobuf.Contract) *Contract {
 	c := NewContract()
 	if pb == nil {
@@ -74,6 +76,7 @@ func NewContractFromProtobufDecoder(msgDec *protofmt.Decoder, pb *protobuf.Contr
 	return c
 }
 
+// Equal reports whether two contracts describe the same instrument.
 func (c *Contract) Equal(other *Contract) bool {
 	if c.ConID != 0 && other.ConID != 0 {
 		return c.ConID == other.ConID
@@ -90,6 +93,7 @@ func (c *Contract) Equal(other *Contract) bool {
 		c.Right == other.Right
 }
 
+// EncodeMessage serializes the contract into the legacy delimited wire format.
 func (c *Contract) EncodeMessage(mode int) ([]byte, error) {
 	msgEnc := message.NewRawEncoder()
 	msgEnc.Int32(c.ConID)
@@ -115,6 +119,7 @@ func (c *Contract) EncodeMessage(mode int) ([]byte, error) {
 	return msgEnc.Bytes(), msgEnc.Err()
 }
 
+// Proto converts the contract into its protobuf representation.
 func (c *Contract) Proto(o *Order) *protobuf.Contract {
 	pb := protobuf.Contract{
 		ConId:                        protofmt.Int32(c.ConID),
@@ -151,6 +156,7 @@ func (c *Contract) Proto(o *Order) *protobuf.Contract {
 	return &pb
 }
 
+// String returns a human-readable summary of the contract.
 func (c *Contract) String() string {
 	s := fmt.Sprintf("%d, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %t, %s, %s, %s, %s",
 		c.ConID,

@@ -200,6 +200,8 @@ const (
 	REQ_CURRENT_TIME_IN_MILLIS    = 105
 )
 
+// PROTOBUF_MSG_IDS maps request message identifiers to the minimum server
+// version that accepts the protobuf form of that request.
 var PROTOBUF_MSG_IDS = map[uint32]int32{
 	REQ_EXECUTIONS:               ServerVersionProtobuf,
 	PLACE_ORDER:                  ServerVersionProtobufPlaceOrder,

@@ -25,7 +25,7 @@ func (d *OrderDecoder) decodeOrderId(msgDec *message.Decoder) {
 func (d *OrderDecoder) decodeContractFields(msgDec *message.Decoder) {
 	d.contract.ConID = msgDec.Int32()
 	d.contract.Symbol = msgDec.String()
-	d.contract.SecType = NewSecurityTypeFromString(msgDec.String())
+	d.contract.SecType = SecurityType(msgDec.String())
 	d.contract.LastTradeDateOrContractMonth = msgDec.String()
 	d.contract.Strike = msgDec.FloatMax()
 	d.contract.Right = msgDec.String()
@@ -57,7 +57,7 @@ func (d *OrderDecoder) decodeAuxPrice(msgDec *message.Decoder) {
 }
 
 func (d *OrderDecoder) decodeTIF(msgDec *message.Decoder) {
-	d.order.TIF = NewTimeInForceFromString(msgDec.String())
+	d.order.TIF = TimeInForce(msgDec.String())
 }
 
 func (d *OrderDecoder) decodeOcaGroup(msgDec *message.Decoder) {
@@ -124,7 +124,7 @@ func (d *OrderDecoder) decodeGoodTillDate(msgDec *message.Decoder) {
 }
 
 func (d *OrderDecoder) decodeRule80A(msgDec *message.Decoder) {
-	d.order.Rule80A = NewRule80aFromString(msgDec.String())
+	d.order.Rule80A = Rule80A(msgDec.String())
 }
 
 func (d *OrderDecoder) decodePercentOffset(msgDec *message.Decoder) {

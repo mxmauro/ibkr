@@ -1016,7 +1016,7 @@ func (c *Client) processContractDataMsg(msgDec *message.Decoder) error {
 	reqID := msgDec.RequestID(false)
 	cd := models.NewContractDetails()
 	cd.Contract.Symbol = msgDec.String()
-	cd.Contract.SecType = models.NewSecurityTypeFromString(msgDec.String())
+	cd.Contract.SecType = models.SecurityType(msgDec.String())
 	cd.Contract.LastTradeDateOrContractMonth = msgDec.String()
 	cd.Contract.LastTradeDate = msgDec.String()
 	cd.Contract.Strike = msgDec.FloatMax()
@@ -1058,7 +1058,7 @@ func (c *Client) processContractDataMsg(msgDec *message.Decoder) error {
 	}
 	cd.AggGroup = msgDec.Int32()
 	cd.UnderSymbol = msgDec.String()
-	cd.UnderSecType = models.NewSecurityTypeFromString(msgDec.String())
+	cd.UnderSecType = models.SecurityType(msgDec.String())
 	cd.MarketRuleIDs = msgDec.String()
 	cd.RealExpirationDate = msgDec.String()
 	cd.StockType = msgDec.String()
@@ -1081,8 +1081,8 @@ func (c *Client) processContractDataMsg(msgDec *message.Decoder) error {
 		cd.FundSubsequentMinimumPurchase = msgDec.String()
 		cd.FundBlueSkyStates = msgDec.String()
 		cd.FundBlueSkyTerritories = msgDec.String()
-		cd.FundDistributionPolicyIndicator = models.NewFundDistributionPolicyIndicatorFromString(msgDec.String())
-		cd.FundAssetType = models.NewFundAssetFromString(msgDec.String())
+		cd.FundDistributionPolicyIndicator = models.FundDistributionPolicyIndicator(msgDec.String())
+		cd.FundAssetType = models.FundAsset(msgDec.String())
 	}
 	ineligibilityReasonListCount := int(msgDec.Int32())
 	if ineligibilityReasonListCount < 0 {
@@ -1168,7 +1168,7 @@ func (c *Client) processBondContractDataMsg(msgDec *message.Decoder) error {
 	reqID := msgDec.RequestID(false)
 	cd := models.NewContractDetails()
 	cd.Contract.Symbol = msgDec.String()
-	cd.Contract.SecType = models.NewSecurityTypeFromString(msgDec.String())
+	cd.Contract.SecType = models.SecurityType(msgDec.String())
 	cd.Cusip = msgDec.String()
 	cd.Coupon = msgDec.Float()
 	cd.Contract.LastTradeDateOrContractMonth = msgDec.String()
@@ -2247,7 +2247,7 @@ func (c *Client) processSymbolSamplesMsg(msgDec *message.Decoder) error {
 		cd := models.NewContractDescription()
 		cd.Contract.ConID = msgDec.Int32()
 		cd.Contract.Symbol = msgDec.String()
-		cd.Contract.SecType = models.NewSecurityTypeFromString(msgDec.String())
+		cd.Contract.SecType = models.SecurityType(msgDec.String())
 		cd.Contract.PrimaryExchange = msgDec.String()
 		cd.Contract.Currency = msgDec.String()
 		derivativeSecTypesCount := int(msgDec.Int32())
@@ -2257,7 +2257,7 @@ func (c *Client) processSymbolSamplesMsg(msgDec *message.Decoder) error {
 		}
 		cd.DerivativeSecTypes = make([]models.SecurityType, 0, derivativeSecTypesCount)
 		for j := 0; j < derivativeSecTypesCount; j++ {
-			derivativeSecType := models.NewSecurityTypeFromString(msgDec.String())
+			derivativeSecType := models.SecurityType(msgDec.String())
 			cd.DerivativeSecTypes = append(cd.DerivativeSecTypes, derivativeSecType)
 		}
 		cd.Contract.Description = msgDec.String()

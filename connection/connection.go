@@ -19,6 +19,7 @@ import (
 
 // -----------------------------------------------------------------------------
 
+// Connection manages a framed TCP connection to TWS or IB Gateway.
 type Connection struct {
 	mtx sync.Mutex
 	wg  sync.WaitGroup
@@ -41,6 +42,7 @@ type Connection struct {
 
 // -----------------------------------------------------------------------------
 
+// New opens a TCP connection and starts the background read and write workers.
 func New(ctx context.Context, address string) (*Connection, error) {
 	var err error
 
@@ -77,6 +79,7 @@ func New(ctx context.Context, address string) (*Connection, error) {
 	return &c, nil
 }
 
+// Close shuts down the connection and waits for the background workers to stop.
 func (c *Connection) Close() {
 	c.closeOnce.Do(func() {
 		c.rp.Wait()
@@ -89,6 +92,7 @@ func (c *Connection) Close() {
 	})
 }
 
+// Send queues a fully encoded message for transmission.
 func (c *Connection) Send(msg []byte) error {
 	// Check if the connection is closed
 	if c.rp.Acquire() == false {
@@ -103,6 +107,7 @@ func (c *Connection) Send(msg []byte) error {
 	return nil
 }
 
+// WaitForNextMessage waits for the next inbound message or connection error.
 func (c *Connection) WaitForNextMessage(ctx context.Context) ([]byte, error) {
 	select {
 	case msg := <-c.msgCh:
@@ -116,10 +121,12 @@ func (c *Connection) WaitForNextMessage(ctx context.Context) ([]byte, error) {
 	}
 }
 
+// MsgRcvCh returns the inbound message channel produced by the reader worker.
 func (c *Connection) MsgRcvCh() <-chan []byte {
 	return c.msgCh
 }
 
+// ErrorCh returns the asynchronous connection error channel.
 func (c *Connection) ErrorCh() <-chan error {
 	return c.errorCh
 }
@@ -158,8 +165,7 @@ func (c *Connection) handleRead() {
 			ofs += read
 		}
 
-		// Process the received message
-		// c.debugDump(msg, "Incoming message of "+strconv.Itoa(msgLen)+" bytes:")
+		// Forward the complete frame unless shutdown won the race first.
 		if c.rp.Acquire() == false {
 			return
 		}
@@ -198,6 +204,7 @@ func (c *Connection) handleWrite() {
 					break
 				}
 
+				// Refresh the write deadline for each chunk so a stuck socket does not block shutdown forever.
 				err = c.conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
 				if err == nil {
 					var written int
@@ -260,6 +267,7 @@ func (c *Connection) parseFields(data []byte, atEOF bool) (advance int, token []
 	return totalSize, data[4:totalSize], nil
 }
 
+// debugDump prints a hexadecimal dump of a raw protocol frame.
 func (c *Connection) debugDump(data []byte, header string) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()

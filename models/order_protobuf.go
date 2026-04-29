@@ -10,6 +10,7 @@ import (
 
 // -----------------------------------------------------------------------------
 
+// NewOrderFromProtobufDecoder decodes an order from protobuf data.
 func NewOrderFromProtobufDecoder(msgDec *protofmt.Decoder, pb *protobuf.Order) *Order {
 	order := NewOrder()
 	if pb == nil {
@@ -26,7 +27,7 @@ func NewOrderFromProtobufDecoder(msgDec *protofmt.Decoder, pb *protobuf.Order) *
 	order.OrderType = msgDec.String(pb.OrderType)
 	order.LmtPrice = msgDec.FloatMax(pb.LmtPrice)
 	order.AuxPrice = msgDec.FloatMax(pb.AuxPrice)
-	order.TIF = NewTimeInForceFromString(msgDec.String(pb.Tif))
+	order.TIF = TimeInForce(msgDec.String(pb.Tif))
 	order.Account = msgDec.String(pb.Account)
 	order.SettlingFirm = msgDec.String(pb.SettlingFirm)
 	order.ClearingAccount = msgDec.String(pb.ClearingAccount)
@@ -44,7 +45,7 @@ func NewOrderFromProtobufDecoder(msgDec *protofmt.Decoder, pb *protobuf.Order) *
 	order.GoodTillDate = msgDec.String(pb.GoodTillDate)
 	order.OCAGroup = msgDec.String(pb.OcaGroup)
 	order.OrderRef = msgDec.String(pb.OrderRef)
-	order.Rule80A = NewRule80aFromString(msgDec.String(pb.Rule80A))
+	order.Rule80A = Rule80A(msgDec.String(pb.Rule80A))
 	order.OCAType = Oca(msgDec.Int32(pb.OcaType))
 	order.TriggerMethod = TriggerMethod(msgDec.Int32(pb.TriggerMethod))
 	order.ActiveStartTime = msgDec.String(pb.ActiveStartTime)
@@ -164,6 +165,7 @@ func NewOrderFromProtobufDecoder(msgDec *protofmt.Decoder, pb *protobuf.Order) *
 	return order
 }
 
+// Proto converts the order into its protobuf representation.
 func (o *Order) Proto() *protobuf.Order {
 	if o == nil {
 		return nil
@@ -324,6 +326,7 @@ func (o *Order) Proto() *protobuf.Order {
 	return pb
 }
 
+// NewOrderStateFromProtobufDecoder decodes an order state from protobuf data.
 func NewOrderStateFromProtobufDecoder(msgDec *protofmt.Decoder, pb *protobuf.OrderState) *OrderState {
 	orderState := NewOrderState()
 	if pb == nil {
@@ -369,6 +372,7 @@ func NewOrderStateFromProtobufDecoder(msgDec *protofmt.Decoder, pb *protobuf.Ord
 	return orderState
 }
 
+// NewExecutionFromProtobufDecoder decodes an execution from protobuf data.
 func NewExecutionFromProtobufDecoder(msgDec *protofmt.Decoder, pb *protobuf.Execution) *Execution {
 	execution := NewExecution()
 	if pb == nil {
@@ -402,6 +406,7 @@ func NewExecutionFromProtobufDecoder(msgDec *protofmt.Decoder, pb *protobuf.Exec
 	return execution
 }
 
+// Proto converts the soft dollar tier into its protobuf representation.
 func (sdt SoftDollarTier) Proto() *protobuf.SoftDollarTier {
 	return &protobuf.SoftDollarTier{
 		Name:        protofmt.String(sdt.Name),
@@ -410,7 +415,12 @@ func (sdt SoftDollarTier) Proto() *protobuf.SoftDollarTier {
 	}
 }
 
+// NewSoftDollarTierFromProtobufDecoder decodes a soft dollar tier from protobuf data.
 func NewSoftDollarTierFromProtobufDecoder(msgDec *protofmt.Decoder, pb *protobuf.SoftDollarTier) SoftDollarTier {
+	if pb == nil {
+		return SoftDollarTier{}
+	}
+
 	return SoftDollarTier{
 		Name:        msgDec.String(pb.Name),
 		Value:       msgDec.String(pb.Value),
@@ -418,6 +428,7 @@ func NewSoftDollarTierFromProtobufDecoder(msgDec *protofmt.Decoder, pb *protobuf
 	}
 }
 
+// Proto converts the cancel request into its protobuf representation.
 func (oc OrderCancel) Proto() *protobuf.OrderCancel {
 	return &protobuf.OrderCancel{
 		ManualOrderCancelTime: protofmt.String(oc.ManualOrderCancelTime),
@@ -426,6 +437,7 @@ func (oc OrderCancel) Proto() *protobuf.OrderCancel {
 	}
 }
 
+// Proto converts the execution filter into its protobuf representation.
 func (ef *ExecutionFilter) Proto() *protobuf.ExecutionFilter {
 	if ef == nil {
 		return &protobuf.ExecutionFilter{}
@@ -447,6 +459,7 @@ func (ef *ExecutionFilter) Proto() *protobuf.ExecutionFilter {
 	return pb
 }
 
+// NewOrderAllocationFromProtobufDecoder decodes an order allocation from protobuf data.
 func NewOrderAllocationFromProtobufDecoder(msgDec *protofmt.Decoder, pb *protobuf.OrderAllocation) *OrderAllocation {
 	if pb == nil {
 		return NewOrderAllocation()
@@ -495,7 +508,7 @@ func orderConditionsFromProtobuf(msgDec *protofmt.Decoder, pbs []*protobuf.Order
 			c.Percent = msgDec.Int32(pb.Percent)
 		case *OrderExecutionCondition:
 			c.IsConjunctionConnection = msgDec.Bool(pb.IsConjunctionConnection)
-			c.SecType = NewSecurityTypeFromString(msgDec.String(pb.SecType))
+			c.SecType = SecurityType(msgDec.String(pb.SecType))
 			c.Exchange = msgDec.String(pb.Exchange)
 			c.Symbol = msgDec.String(pb.Symbol)
 		case *OrderVolumeCondition:

@@ -12,7 +12,12 @@ import (
 	"github.com/mxmauro/ibkr/utils/encoders/protofmt"
 )
 
+// -----------------------------------------------------------------------------
+
+// PlaceOrder submits a new order or updates an existing order when opts.Order.OrderID is set.
 func (c *Client) PlaceOrder(opts models.PlaceOrderRequestOptions) (int32, error) {
+	var msgEnc *message.Encoder
+
 	if opts.Contract == nil {
 		return 0, errors.New("invalid contract")
 	}
@@ -46,9 +51,10 @@ func (c *Client) PlaceOrder(opts models.PlaceOrderRequestOptions) (int32, error)
 		opts.Order.ClientID = c.clientID
 	}
 
+	// Persist the outbound order intent before sending so reconnect recovery can
+	// reconcile later status, open-order, and execution callbacks.
 	c.orderStore.CreateOrder(opts.Contract, opts.Order)
 
-	var msgEnc *message.Encoder
 	if c.isProtoBufAvailable(common.PLACE_ORDER) {
 		pb := protobuf.PlaceOrderRequest{
 			OrderId:  protofmt.Int32(orderID),
@@ -72,7 +78,12 @@ func (c *Client) PlaceOrder(opts models.PlaceOrderRequestOptions) (int32, error)
 	return orderID, nil
 }
 
+// -----------------------------------------------------------------------------
+
+// CancelOrder requests cancellation of an active order.
 func (c *Client) CancelOrder(opts models.CancelOrderRequestOptions) error {
+	var msgEnc *message.Encoder
+
 	if opts.OrderID <= 0 {
 		return errors.New("invalid order id")
 	}
@@ -82,7 +93,6 @@ func (c *Client) CancelOrder(opts models.CancelOrderRequestOptions) error {
 	}
 	defer c.rp.Release()
 
-	var msgEnc *message.Encoder
 	if c.isProtoBufAvailable(common.CANCEL_ORDER) {
 		pb := protobuf.CancelOrderRequest{
 			OrderId: protofmt.Int32(opts.OrderID),
@@ -111,21 +121,31 @@ func (c *Client) CancelOrder(opts models.CancelOrderRequestOptions) error {
 	return c.sendMessage(msgEnc.Bytes())
 }
 
+// -----------------------------------------------------------------------------
+
+// RequestOpenOrders retrieves the current open orders owned by this client ID.
 func (c *Client) RequestOpenOrders(ctx context.Context) (*models.OpenOrdersResponse, error) {
 	return c.requestOpenOrdersCommon(ctx, common.REQ_OPEN_ORDERS, false)
 }
 
+// -----------------------------------------------------------------------------
+
+// RequestAllOpenOrders retrieves all open orders visible to the current connection.
 func (c *Client) RequestAllOpenOrders(ctx context.Context) (*models.OpenOrdersResponse, error) {
 	return c.requestOpenOrdersCommon(ctx, common.REQ_ALL_OPEN_ORDERS, false)
 }
 
+// -----------------------------------------------------------------------------
+
+// RequestAutoOpenOrders configures whether new TWS orders are auto-bound to this client.
 func (c *Client) RequestAutoOpenOrders(opts models.AutoOpenOrdersRequestOptions) error {
+	var msgEnc *message.Encoder
+
 	if !c.rp.Acquire() {
 		return net.ErrClosed
 	}
 	defer c.rp.Release()
 
-	var msgEnc *message.Encoder
 	if c.isProtoBufAvailable(common.REQ_AUTO_OPEN_ORDERS) {
 		pb := protobuf.AutoOpenOrdersRequest{
 			AutoBind: protofmt.Bool(opts.AutoBind),
@@ -146,9 +166,14 @@ func (c *Client) RequestAutoOpenOrders(opts models.AutoOpenOrdersRequestOptions)
 	return c.sendMessage(msgEnc.Bytes())
 }
 
+// -----------------------------------------------------------------------------
+
+// RequestExecutions retrieves executions matching the provided filter.
 func (c *Client) RequestExecutions(
 	ctx context.Context, opts models.ExecutionsRequestOptions,
 ) (*models.ExecutionsResponse, error) {
+	var msgEnc *message.Encoder
+
 	if !c.rp.Acquire() {
 		return nil, net.ErrClosed
 	}
@@ -166,7 +191,6 @@ func (c *Client) RequestExecutions(
 		filter = models.NewExecutionFilter()
 	}
 
-	var msgEnc *message.Encoder
 	if c.isProtoBufAvailable(common.REQ_EXECUTIONS) {
 		pb := protobuf.ExecutionRequest{
 			ReqId:           protofmt.Int32(req.ID()),
@@ -209,9 +233,14 @@ func (c *Client) RequestExecutions(
 	return resp, nil
 }
 
+// -----------------------------------------------------------------------------
+
+// RequestCompletedOrders retrieves completed orders visible to the current connection.
 func (c *Client) RequestCompletedOrders(
 	ctx context.Context, opts models.CompletedOrdersRequestOptions,
 ) (*models.CompletedOrdersResponse, error) {
+	var msgEnc *message.Encoder
+
 	if !c.rp.Acquire() {
 		return nil, net.ErrClosed
 	}
@@ -224,7 +253,6 @@ func (c *Client) RequestCompletedOrders(
 		Response: resp,
 	})
 
-	var msgEnc *message.Encoder
 	if c.isProtoBufAvailable(common.REQ_COMPLETED_ORDERS) {
 		pb := protobuf.CompletedOrdersRequest{
 			ApiOnly: protofmt.Bool(opts.APIOnly),
@@ -253,13 +281,17 @@ func (c *Client) RequestCompletedOrders(
 	return resp, nil
 }
 
+// -----------------------------------------------------------------------------
+
+// RequestGlobalCancel requests cancellation of all active visible orders.
 func (c *Client) RequestGlobalCancel(orderCancel *models.OrderCancel) error {
+	var msgEnc *message.Encoder
+
 	if !c.rp.Acquire() {
 		return net.ErrClosed
 	}
 	defer c.rp.Release()
 
-	var msgEnc *message.Encoder
 	if c.isProtoBufAvailable(common.REQ_GLOBAL_CANCEL) {
 		pb := protobuf.GlobalCancelRequest{}
 		if orderCancel != nil {
@@ -284,9 +316,13 @@ func (c *Client) RequestGlobalCancel(orderCancel *models.OrderCancel) error {
 	return c.sendMessage(msgEnc.Bytes())
 }
 
+// -----------------------------------------------------------------------------
+
 func (c *Client) requestOpenOrdersCommon(
 	ctx context.Context, msgCode uint32, autoBind bool,
 ) (*models.OpenOrdersResponse, error) {
+	var msgEnc *message.Encoder
+
 	if !c.rp.Acquire() {
 		return nil, net.ErrClosed
 	}
@@ -299,7 +335,6 @@ func (c *Client) requestOpenOrdersCommon(
 		Response: resp,
 	})
 
-	var msgEnc *message.Encoder
 	if c.isProtoBufAvailable(msgCode) {
 		switch msgCode {
 		case common.REQ_OPEN_ORDERS:
@@ -339,6 +374,8 @@ func (c *Client) requestOpenOrdersCommon(
 
 	return resp, nil
 }
+
+// -----------------------------------------------------------------------------
 
 func encodeLegacyPlaceOrderRequest(orderID int32, contract *models.Contract, order *models.Order) *message.Encoder {
 	msgEnc := message.NewEncoder().Reserve(170).

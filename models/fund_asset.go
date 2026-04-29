@@ -15,27 +15,3 @@ const (
 	FundAssetGuaranteed  FundAsset = "006"
 	FundAssetAlternative FundAsset = "007"
 )
-
-// -----------------------------------------------------------------------------
-
-func NewFundAssetFromString(fundAsset string) FundAsset {
-	switch fundAsset {
-	case string(FundAssetOthers):
-		return FundAssetOthers
-	case string(FundAssetMoneyMarket):
-		return FundAssetMoneyMarket
-	case string(FundAssetFixedIncome):
-		return FundAssetFixedIncome
-	case string(FundAssetMultiAsset):
-		return FundAssetMultiAsset
-	case string(FundAssetEquity):
-		return FundAssetEquity
-	case string(FundAssetSector):
-		return FundAssetSector
-	case string(FundAssetGuaranteed):
-		return FundAssetGuaranteed
-	case string(FundAssetAlternative):
-		return FundAssetAlternative
-	}
-	return FundAssetNone
-}

@@ -130,7 +130,7 @@ func (c *Client) processExecutionDetailsMsg(msgDec *message.Decoder) error {
 	contract := models.NewContract()
 	contract.ConID = msgDec.Int32()
 	contract.Symbol = msgDec.String()
-	contract.SecType = models.NewSecurityTypeFromString(msgDec.String())
+	contract.SecType = models.SecurityType(msgDec.String())
 	contract.LastTradeDateOrContractMonth = msgDec.String()
 	contract.Strike = msgDec.FloatMax()
 	contract.Right = msgDec.String()

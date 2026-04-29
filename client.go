@@ -23,6 +23,7 @@ import (
 
 // -----------------------------------------------------------------------------
 
+// Client manages the connection, request routing, and event processing for IBKR.
 type Client struct {
 	rp            rundownprotection.RundownProtection
 	eventsHandler Events
@@ -46,6 +47,7 @@ type Client struct {
 	reqMgr RequestManager
 }
 
+// Options configures how a client connects to TWS or IB Gateway.
 type Options struct {
 	Address       string
 	EventsHandler Events
@@ -226,6 +228,8 @@ func (c *Client) RequestCurrentTime(ctx context.Context) (time.Time, error) {
 
 // RequestManagedAccounts requests the list of managed accounts.
 func (c *Client) RequestManagedAccounts(ctx context.Context) ([]string, error) {
+	var msgEnc *message.Encoder
+
 	// Rundown protect
 	if !c.rp.Acquire() {
 		return nil, net.ErrClosed
@@ -241,7 +245,6 @@ func (c *Client) RequestManagedAccounts(ctx context.Context) ([]string, error) {
 	})
 
 	// Build the message to send
-	var msgEnc *message.Encoder
 	if c.isProtoBufAvailable(common.REQ_MANAGED_ACCTS) {
 		pb := protobuf.ManagedAccountsRequest{}
 		msgEnc = message.NewEncoder().
@@ -276,6 +279,8 @@ func (c *Client) RequestManagedAccounts(ctx context.Context) ([]string, error) {
 
 // RequestHistoricalData retrieves historical market data.
 func (c *Client) RequestHistoricalData(ctx context.Context, opts models.HistoricalDataRequestOptions) (*models.HistoricalDataResponse, error) {
+	var msgEnc *message.Encoder
+
 	// Validate options
 	if opts.Contract == nil {
 		return nil, errors.New("invalid contract")
@@ -336,7 +341,6 @@ func (c *Client) RequestHistoricalData(ctx context.Context, opts models.Historic
 	}
 
 	// Build the message to send
-	var msgEnc *message.Encoder
 	if c.isProtoBufAvailable(common.REQ_HISTORICAL_DATA) {
 		pb := protobuf.HistoricalDataRequest{
 			ReqId:          protofmt.Int32(req.ID()),
@@ -400,7 +404,10 @@ func (c *Client) RequestHistoricalData(ctx context.Context, opts models.Historic
 	return resp, nil
 }
 
+// RequestRealTimeBars subscribes to streaming real-time bars.
 func (c *Client) RequestRealTimeBars(ctx context.Context, opts models.RealTimeBarsRequestOptions) (*models.RealTimeBarsResponse, error) {
+	var msgEnc *message.Encoder
+
 	if opts.Contract == nil {
 		return nil, errors.New("invalid contract")
 	}
@@ -440,7 +447,6 @@ func (c *Client) RequestRealTimeBars(ctx context.Context, opts models.RealTimeBa
 		return req.Err()
 	}
 
-	var msgEnc *message.Encoder
 	if c.isProtoBufAvailable(common.REQ_REAL_TIME_BARS) {
 		pb := protobuf.RealTimeBarsRequest{
 			ReqId:      protofmt.Int32(req.ID()),
@@ -475,12 +481,17 @@ func (c *Client) RequestRealTimeBars(ctx context.Context, opts models.RealTimeBa
 		return nil, err
 	}
 
+	// Bind the request context after the subscription is accepted so cancellation
+	// sends the matching cancel request instead of just abandoning the stream.
 	bindStreamRequestContext(ctx, req, resp.Cancel)
 
 	return resp, nil
 }
 
+// RequestTickByTickData subscribes to tick-by-tick market data.
 func (c *Client) RequestTickByTickData(ctx context.Context, opts models.TickByTickRequestOptions) (*models.TickByTickResponse, error) {
+	var msgEnc *message.Encoder
+
 	if opts.Contract == nil {
 		return nil, errors.New("invalid contract")
 	}
@@ -517,7 +528,6 @@ func (c *Client) RequestTickByTickData(ctx context.Context, opts models.TickByTi
 		return req.Err()
 	}
 
-	var msgEnc *message.Encoder
 	if c.isProtoBufAvailable(common.REQ_TICK_BY_TICK_DATA) {
 		pb := protobuf.TickByTickRequest{
 			ReqId:         protofmt.Int32(req.ID()),
@@ -546,6 +556,8 @@ func (c *Client) RequestTickByTickData(ctx context.Context, opts models.TickByTi
 		return nil, err
 	}
 
+	// Bind the request context after the subscription is accepted so cancellation
+	// sends the matching cancel request instead of just abandoning the stream.
 	bindStreamRequestContext(ctx, req, resp.Cancel)
 
 	return resp, nil
@@ -553,6 +565,8 @@ func (c *Client) RequestTickByTickData(ctx context.Context, opts models.TickByTi
 
 // RequestHistoricalTicks retrieves historical market ticks.
 func (c *Client) RequestHistoricalTicks(ctx context.Context, opts models.HistoricalTicksRequestOptions) (*models.HistoricalTicksResponse, error) {
+	var msgEnc *message.Encoder
+
 	// Validate options
 	if opts.Contract == nil {
 		return nil, errors.New("invalid contract")
@@ -592,7 +606,6 @@ func (c *Client) RequestHistoricalTicks(ctx context.Context, opts models.Histori
 	})
 
 	// Build the message to send
-	var msgEnc *message.Encoder
 	if c.isProtoBufAvailable(common.REQ_HISTORICAL_TICKS) {
 		pb := protobuf.HistoricalTicksRequest{
 			ReqId:         protofmt.Int32(req.ID()),
@@ -643,6 +656,8 @@ func (c *Client) RequestHistoricalTicks(ctx context.Context, opts models.Histori
 
 // RequestContractDetails retrieves all details for contracts matching the provided input.
 func (c *Client) RequestContractDetails(ctx context.Context, opts models.ContractDetailsRequestOptions) (*models.ContractDetailsResponse, error) {
+	var msgEnc *message.Encoder
+
 	// Validate options
 	if opts.Contract == nil {
 		return nil, errors.New("invalid contract")
@@ -666,7 +681,6 @@ func (c *Client) RequestContractDetails(ctx context.Context, opts models.Contrac
 	})
 
 	// Build the message to send
-	var msgEnc *message.Encoder
 	if c.isProtoBufAvailable(common.REQ_CONTRACT_DATA) {
 		pb := protobuf.ContractDataRequest{
 			ReqId:    protofmt.Int32(req.ID()),
@@ -706,6 +720,8 @@ func (c *Client) RequestContractDetails(ctx context.Context, opts models.Contrac
 
 // RequestMatchingSymbols retrieves all details for contracts matching the provided input.
 func (c *Client) RequestMatchingSymbols(ctx context.Context, opts models.MatchingSymbolsRequestOptions) (*models.MatchingSymbolsResponse, error) {
+	var msgEnc *message.Encoder
+
 	// Rundown protect
 	if !c.rp.Acquire() {
 		return nil, net.ErrClosed
@@ -723,7 +739,6 @@ func (c *Client) RequestMatchingSymbols(ctx context.Context, opts models.Matchin
 	})
 
 	// Build the message to send
-	var msgEnc *message.Encoder
 	if c.isProtoBufAvailable(common.REQ_MATCHING_SYMBOLS) {
 		pb := protobuf.MatchingSymbolsRequest{
 			ReqId:   protofmt.Int32(req.ID()),
@@ -759,9 +774,12 @@ func (c *Client) RequestMatchingSymbols(ctx context.Context, opts models.Matchin
 	return resp, nil
 }
 
+// RequestSecurityDefinitionOptionParameters retrieves option chain metadata for an underlying.
 func (c *Client) RequestSecurityDefinitionOptionParameters(
 	ctx context.Context, opts models.SecurityDefinitionOptionParametersRequestOptions,
 ) (*models.SecurityDefinitionOptionParametersResponse, error) {
+	var msgEnc *message.Encoder
+
 	if len(opts.UnderlyingSymbol) == 0 {
 		return nil, errors.New("invalid underlying symbol")
 	}
@@ -785,7 +803,6 @@ func (c *Client) RequestSecurityDefinitionOptionParameters(
 		Response: resp,
 	})
 
-	var msgEnc *message.Encoder
 	if c.isProtoBufAvailable(common.REQ_SEC_DEF_OPT_PARAMS) {
 		pb := protobuf.SecDefOptParamsRequest{
 			ReqId:             protofmt.Int32(req.ID()),
@@ -822,7 +839,10 @@ func (c *Client) RequestSecurityDefinitionOptionParameters(
 	return resp, nil
 }
 
+// RequestMarketDataType sets the preferred market data mode for subsequent subscriptions.
 func (c *Client) RequestMarketDataType(_ context.Context, opts models.MarketDataTypeRequestOptions) error {
+	var msgEnc *message.Encoder
+
 	// Validate options
 	if len(opts.Type.String()) == 0 {
 		return errors.New("invalid market data type")
@@ -835,7 +855,6 @@ func (c *Client) RequestMarketDataType(_ context.Context, opts models.MarketData
 	defer c.rp.Release()
 
 	// Build the message to send
-	var msgEnc *message.Encoder
 	if c.isProtoBufAvailable(common.REQ_MARKET_DATA_TYPE) {
 		pb := protobuf.MarketDataTypeRequest{
 			MarketDataType: protofmt.Int32(int32(opts.Type)),
@@ -869,7 +888,10 @@ func (c *Client) currentMarketDataType() models.MarketDataType {
 	return models.MarketDataType(atomic.LoadInt32(&c.marketDataType))
 }
 
+// RequestTopMarketData subscribes to top-of-book market data for a contract.
 func (c *Client) RequestTopMarketData(ctx context.Context, opts models.TopMarketDataRequestOptions) (*models.TopMarketDataResponse, error) {
+	var msgEnc *message.Encoder
+
 	// Validate options
 	if opts.Contract == nil {
 		return nil, errors.New("invalid contract")
@@ -903,8 +925,7 @@ func (c *Client) RequestTopMarketData(ctx context.Context, opts models.TopMarket
 	}
 
 	// Build the message to send
-	var msgEnc *message.Encoder
-
+	// Build the generic tick list once so both protocol encoders stay in sync.
 	genericTickSB := strings.Builder{}
 	for idx, gt := range opts.AdditionalGenericTicks {
 		if idx > 0 {
@@ -958,13 +979,18 @@ func (c *Client) RequestTopMarketData(ctx context.Context, opts models.TopMarket
 		return nil, err
 	}
 
+	// Bind the request context after the subscription is accepted so cancellation
+	// sends the matching cancel request instead of just abandoning the stream.
 	bindStreamRequestContext(ctx, req, resp.Cancel)
 
 	// Done
 	return resp, nil
 }
 
+// RequestMarketDepthData subscribes to market depth updates for a contract.
 func (c *Client) RequestMarketDepthData(ctx context.Context, opts models.MarketDepthDataRequestOptions) (*models.MarketDepthDataResponse, error) {
+	var msgEnc *message.Encoder
+
 	// Validate options
 	if opts.Contract == nil {
 		return nil, errors.New("invalid contract")
@@ -1001,7 +1027,6 @@ func (c *Client) RequestMarketDepthData(ctx context.Context, opts models.MarketD
 	}
 
 	// Build the message to send
-	var msgEnc *message.Encoder
 	if c.isProtoBufAvailable(common.REQ_MKT_DEPTH) {
 		pb := protobuf.MarketDepthRequest{
 			ReqId:        protofmt.Int32(req.ID()),
@@ -1033,6 +1058,8 @@ func (c *Client) RequestMarketDepthData(ctx context.Context, opts models.MarketD
 		return nil, err
 	}
 
+	// Bind the request context after the subscription is accepted so cancellation
+	// sends the matching cancel request instead of just abandoning the stream.
 	bindStreamRequestContext(ctx, req, resp.Cancel)
 
 	// Done
@@ -1040,6 +1067,8 @@ func (c *Client) RequestMarketDepthData(ctx context.Context, opts models.MarketD
 }
 
 func (c *Client) cancelTopMarketData(req *Request) {
+	var msgEnc *message.Encoder
+
 	// Rundown protect
 	if !c.rp.Acquire() {
 		return
@@ -1047,7 +1076,6 @@ func (c *Client) cancelTopMarketData(req *Request) {
 	defer c.rp.Release()
 
 	// Build the message to send
-	var msgEnc *message.Encoder
 	if c.isProtoBufAvailable(common.CANCEL_MKT_DATA) {
 		pb := protobuf.CancelMarketData{
 			ReqId: protofmt.Int32(req.ID()),
@@ -1071,12 +1099,13 @@ func (c *Client) cancelTopMarketData(req *Request) {
 }
 
 func (c *Client) cancelHistoricalData(req *Request) {
+	var msgEnc *message.Encoder
+
 	if !c.rp.Acquire() {
 		return
 	}
 	defer c.rp.Release()
 
-	var msgEnc *message.Encoder
 	if c.isProtoBufAvailable(common.CANCEL_HISTORICAL_DATA) {
 		pb := protobuf.CancelHistoricalData{
 			ReqId: protofmt.Int32(req.ID()),
@@ -1098,6 +1127,8 @@ func (c *Client) cancelHistoricalData(req *Request) {
 }
 
 func (c *Client) cancelMarketDepthData(req *Request, isSmartDepth bool) {
+	var msgEnc *message.Encoder
+
 	// Rundown protect
 	if !c.rp.Acquire() {
 		return
@@ -1105,7 +1136,6 @@ func (c *Client) cancelMarketDepthData(req *Request, isSmartDepth bool) {
 	defer c.rp.Release()
 
 	// Build the message to send
-	var msgEnc *message.Encoder
 	if c.isProtoBufAvailable(common.CANCEL_MKT_DEPTH) {
 		pb := protobuf.CancelMarketDepth{
 			ReqId:        protofmt.Int32(req.ID()),
@@ -1131,12 +1161,13 @@ func (c *Client) cancelMarketDepthData(req *Request, isSmartDepth bool) {
 }
 
 func (c *Client) cancelRealTimeBars(req *Request) {
+	var msgEnc *message.Encoder
+
 	if !c.rp.Acquire() {
 		return
 	}
 	defer c.rp.Release()
 
-	var msgEnc *message.Encoder
 	if c.isProtoBufAvailable(common.CANCEL_REAL_TIME_BARS) {
 		pb := protobuf.CancelRealTimeBars{
 			ReqId: protofmt.Int32(req.ID()),
@@ -1158,12 +1189,13 @@ func (c *Client) cancelRealTimeBars(req *Request) {
 }
 
 func (c *Client) cancelTickByTickData(req *Request) {
+	var msgEnc *message.Encoder
+
 	if !c.rp.Acquire() {
 		return
 	}
 	defer c.rp.Release()
 
-	var msgEnc *message.Encoder
 	if c.isProtoBufAvailable(common.CANCEL_TICK_BY_TICK_DATA) {
 		pb := protobuf.CancelTickByTick{
 			ReqId: protofmt.Int32(req.ID()),

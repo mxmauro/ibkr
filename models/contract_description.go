@@ -17,6 +17,7 @@ type ContractDescription struct {
 
 // -----------------------------------------------------------------------------
 
+// NewContractDescription allocates an empty contract description.
 func NewContractDescription() *ContractDescription {
 	cd := ContractDescription{
 		Contract: NewContract(),
@@ -24,6 +25,7 @@ func NewContractDescription() *ContractDescription {
 	return &cd
 }
 
+// NewContractDescriptionFromProtobufDecoder decodes a contract description from protobuf data.
 func NewContractDescriptionFromProtobufDecoder(msgDec *protofmt.Decoder, pb *protobuf.ContractDescription) *ContractDescription {
 	cd := NewContractDescription()
 	if pb == nil {
@@ -32,11 +34,12 @@ func NewContractDescriptionFromProtobufDecoder(msgDec *protofmt.Decoder, pb *pro
 	cd.Contract = NewContractFromProtobufDecoder(msgDec, pb.Contract)
 	cd.DerivativeSecTypes = make([]SecurityType, len(pb.DerivativeSecTypes))
 	for idx, dst := range pb.DerivativeSecTypes {
-		cd.DerivativeSecTypes[idx] = NewSecurityTypeFromString(dst)
+		cd.DerivativeSecTypes[idx] = SecurityType(dst)
 	}
 	return cd
 }
 
+// String returns a human-readable summary of the description and derivative types.
 func (c *ContractDescription) String() string {
 	sb := strings.Builder{}
 	_, _ = sb.WriteString(c.Contract.String())

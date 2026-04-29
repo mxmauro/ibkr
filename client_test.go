@@ -2,6 +2,8 @@ package ibkr_test
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +13,8 @@ import (
 )
 
 // -----------------------------------------------------------------------------
+
+var liveTrading = flag.Bool("live", false, "run tests against the live IB Gateway on port 4001 instead of paper trading on port 4002")
 
 func TestSuite(t *testing.T) {
 	client := connect(t)
@@ -106,18 +110,35 @@ func TestSuite(t *testing.T) {
 
 		testSecurityDefinitionOptionParameters(t, client)
 	})
+	t.Run("Paper-orders", func(t *testing.T) {
+		swm := newStopWatchMeasure(t, sw)
+		defer swm.End()
+
+		testPaperOrders(t)
+	})
 }
 
 // -----------------------------------------------------------------------------
 
 func connect(t *testing.T) *ibkr.Client {
-	t.Log("Connecting to server...")
+	return connectWithOrderStore(t, nil)
+}
+
+func connectWithOrderStore(t *testing.T, orderStore ibkr.OrderStore) *ibkr.Client {
+	address := getTestServerAddress()
+	t.Logf("Connecting to server (%s)...", address)
+	if *liveTrading {
+		t.Log("Live trading mode enabled")
+	} else {
+		t.Log("Paper trading mode enabled")
+	}
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelCtx()
 
 	client, err := ibkr.NewClient(ctx, ibkr.Options{
-		Address: "127.0.0.1:4001",
+		Address:    address,
+		OrderStore: orderStore,
 		EventsHandler: ibkr.NewIncomingMessageLogger(func(msg string) {
 			t.Log(msg)
 		}),
@@ -129,6 +150,26 @@ func connect(t *testing.T) *ibkr.Client {
 
 	// Done
 	return client
+}
+
+// -----------------------------------------------------------------------------
+
+func getTestServerAddress() string {
+	port := 4002
+	if *liveTrading {
+		port = 4001
+	}
+	return fmt.Sprintf("127.0.0.1:%d", port)
+}
+
+// -----------------------------------------------------------------------------
+
+func skipIfLiveTrading(t *testing.T, reason string) {
+	t.Helper()
+
+	if *liveTrading {
+		t.Skip("Skipping in live trading mode: " + reason)
+	}
 }
 
 // -----------------------------------------------------------------------------

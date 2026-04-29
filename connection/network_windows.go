@@ -7,6 +7,7 @@ import (
 
 // -----------------------------------------------------------------------------
 
+// IsConnectionDropError reports whether err matches a Windows socket disconnect condition.
 func IsConnectionDropError(err error) bool {
 	var errno syscall.Errno
 

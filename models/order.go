@@ -10,6 +10,7 @@ import (
 
 // -----------------------------------------------------------------------------
 
+// Order describes an IB order and its full set of supported attributes.
 type Order struct {
 	// order identifier
 	OrderID  int32
@@ -218,6 +219,7 @@ type Order struct {
 }
 
 var (
+	// CompeteAgainstBestOffsetUpToMid is IB's sentinel for pegged-best orders that may improve up to the midpoint.
 	CompeteAgainstBestOffsetUpToMid = math.Inf(1)
 )
 
@@ -233,6 +235,7 @@ func NewOrder() *Order {
 	return order
 }
 
+// HasSameID reports whether two orders refer to the same IB order identity.
 func (o *Order) HasSameID(other *Order) bool {
 	if o.PermID != 0 && other.PermID != 0 {
 		return o.PermID == other.PermID
@@ -240,6 +243,7 @@ func (o *Order) HasSameID(other *Order) bool {
 	return o.OrderID == other.OrderID && o.ClientID == other.ClientID
 }
 
+// String returns a human-readable summary of the order.
 func (o *Order) String() string {
 	sb := strings.Builder{}
 	_, _ = sb.WriteString(fmt.Sprintf("%s, %s, %s: %s %s %s@%s %s",

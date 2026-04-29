@@ -19,7 +19,7 @@ type OrderExecutionCondition struct {
 
 func (ec *OrderExecutionCondition) decode(msgDec *message.Decoder) {
 	ec.orderConditionBase.decode(msgDec)
-	ec.SecType = NewSecurityTypeFromString(msgDec.String())
+	ec.SecType = SecurityType(msgDec.String())
 	ec.Exchange = msgDec.String()
 	ec.Symbol = msgDec.String()
 }

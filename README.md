@@ -18,6 +18,6 @@ Thanks to the authors and collaborators for the excellent job.
 ## LICENSE
 
 Copyright © 2025 SCM
-Copyright © 2025 Mauro H. Leggieri
+Copyright © 2025-2026 Mauro H. Leggieri
 
 [MIT](/LICENSE)

@@ -89,6 +89,7 @@ type ContractDetails struct {
 
 // -----------------------------------------------------------------------------
 
+// NewContractDetails allocates an empty contract details structure.
 func NewContractDetails() *ContractDetails {
 	cd := ContractDetails{
 		Contract: NewContract(),
@@ -96,6 +97,7 @@ func NewContractDetails() *ContractDetails {
 	return &cd
 }
 
+// NewContractDetailsFromProtobufDecoder decodes contract details from protobuf data.
 func NewContractDetailsFromProtobufDecoder(
 	msgDec *protofmt.Decoder, pb *protobuf.ContractDetails, pbContract *protobuf.Contract,
 ) *ContractDetails {
@@ -185,6 +187,7 @@ func NewContractDetailsFromProtobufDecoder(
 	return cd
 }
 
+// OnContractLastTradeDateOrContractMonthUpdated normalizes the split trade date and time fields.
 func (cd *ContractDetails) OnContractLastTradeDateOrContractMonthUpdated(isBond bool) {
 	//goland:noinspection
 	lastTradeDateOrContractMonth := cd.Contract.LastTradeDateOrContractMonth // YYYYMM or YYYYMMDD
@@ -221,6 +224,7 @@ func (cd *ContractDetails) OnContractLastTradeDateOrContractMonthUpdated(isBond 
 	}
 }
 
+// String returns a human-readable summary of the contract details.
 func (cd *ContractDetails) String() string {
 	return fmt.Sprintf(
 		"%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %t, %t, %f, %t, %s, %s, %s, %s, %t, %s, %s, %s, %s",

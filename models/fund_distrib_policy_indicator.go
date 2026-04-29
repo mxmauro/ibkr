@@ -9,15 +9,3 @@ const (
 	FundDistributionPolicyIndicatorAccumulationFund FundDistributionPolicyIndicator = "N"
 	FundDistributionPolicyIndicatorIncomeFund       FundDistributionPolicyIndicator = "Y"
 )
-
-// -----------------------------------------------------------------------------
-
-func NewFundDistributionPolicyIndicatorFromString(fundIndicator string) FundDistributionPolicyIndicator {
-	switch fundIndicator {
-	case string(FundDistributionPolicyIndicatorAccumulationFund):
-		return FundDistributionPolicyIndicatorAccumulationFund
-	case string(FundDistributionPolicyIndicatorIncomeFund):
-		return FundDistributionPolicyIndicatorIncomeFund
-	}
-	return FundDistributionPolicyIndicatorNone
-}

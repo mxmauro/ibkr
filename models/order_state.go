@@ -9,6 +9,7 @@ import (
 
 // -----------------------------------------------------------------------------
 
+// OrderState holds IB's latest state and margin information for an order.
 type OrderState struct {
 	Status string
 
@@ -47,11 +48,13 @@ type OrderState struct {
 
 // -----------------------------------------------------------------------------
 
+// NewOrderState allocates an empty order state.
 func NewOrderState() *OrderState {
 	os := OrderState{}
 	return &os
 }
 
+// String returns a human-readable summary of the order state.
 func (os *OrderState) String() string {
 	s := fmt.Sprint(
 		"Status: ", os.Status,
