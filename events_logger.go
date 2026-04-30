@@ -58,6 +58,17 @@ func (el *EventsLogger) Error(ts time.Time, code int, message string, advancedOr
 	logger.msg("<Error>")
 }
 
+func (el *EventsLogger) Warning(ts time.Time, code int, message string, advancedOrderRejectJson string) {
+	logger := el.build().
+		str("Timestamp", ts.Format("2006/01/02 15:04:05")).
+		int64("Code", int64(code)).
+		str("Message", message)
+	if len(advancedOrderRejectJson) > 0 {
+		logger = logger.str("AdvancedOrderRejectJson", advancedOrderRejectJson)
+	}
+	logger.msg("<Warning>")
+}
+
 /*
 
 func (el *EventsLogger) TickPrice(reqID models.TickerID, tickType models.TickType, price float64, attrib models.TickAttrib) {

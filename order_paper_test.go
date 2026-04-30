@@ -23,6 +23,7 @@ type orderStoreSpy struct {
 	executions        []*models.Execution
 	permIDsByOrderID  map[int32]int64
 	errorsByOrderID   map[int32][]string
+	warningsByOrderID map[int32][]string
 	commissionReports []*models.CommissionAndFeesReport
 }
 
@@ -30,8 +31,9 @@ type orderStoreSpy struct {
 
 func newOrderStoreSpy() *orderStoreSpy {
 	return &orderStoreSpy{
-		permIDsByOrderID: make(map[int32]int64),
-		errorsByOrderID:  make(map[int32][]string),
+		permIDsByOrderID:  make(map[int32]int64),
+		errorsByOrderID:   make(map[int32][]string),
+		warningsByOrderID: make(map[int32][]string),
 	}
 }
 
@@ -61,6 +63,13 @@ func (s *orderStoreSpy) RecordOrderError(orderID int32, _ time.Time, _ int, mess
 	defer s.mtx.Unlock()
 
 	s.errorsByOrderID[orderID] = append(s.errorsByOrderID[orderID], message)
+}
+
+func (s *orderStoreSpy) RecordOrderWarning(orderID int32, _ time.Time, _ int, message string, _ string) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	s.warningsByOrderID[orderID] = append(s.warningsByOrderID[orderID], message)
 }
 
 func (s *orderStoreSpy) RecordOpenOrder(_ *models.Contract, order *models.Order, _ *models.OrderState) {
@@ -165,6 +174,25 @@ func (s *orderStoreSpy) hasErrorContaining(orderID int32, substr string) bool {
 	defer s.mtx.Unlock()
 
 	for _, errMsg := range s.errorsByOrderID[orderID] {
+		if strings.Contains(errMsg, substr) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *orderStoreSpy) warnings(orderID int32) []string {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	return append([]string(nil), s.warningsByOrderID[orderID]...)
+}
+
+func (s *orderStoreSpy) hasWarningContaining(orderID int32, substr string) bool {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	for _, errMsg := range s.warningsByOrderID[orderID] {
 		if strings.Contains(errMsg, substr) {
 			return true
 		}

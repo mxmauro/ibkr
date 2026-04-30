@@ -11,6 +11,7 @@ type Events interface {
 	ReceivedUnknownMessage(id uint32)
 
 	Error(ts time.Time, code int, message string, advancedOrderRejectJson string)
+	Warning(ts time.Time, code int, message string, advancedOrderRejectJson string)
 
 	/*
 		// TickPrice handles all price related ticks. Every tickPrice callback is followed by a tickSize.

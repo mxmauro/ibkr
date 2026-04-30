@@ -16,7 +16,8 @@ type StoredOrder struct {
 	OrderState            *models.OrderState
 	LastStatus            *models.OrderStatusUpdate
 	Executions            []*models.Execution
-	Errors                []models.OrderError
+	Errors                []models.OrderErrorOrWarning
+	Warnings              []models.OrderErrorOrWarning
 	CommissionAndFeeItems []*models.CommissionAndFeesReport
 	IsOpen                bool
 	IsCompleted           bool
@@ -81,7 +82,24 @@ func (s *InMemoryOrderStore) RecordOrderError(
 	defer s.mtx.Unlock()
 
 	state := s.ensureOrderLocked(orderID, "", 0)
-	state.Errors = append(state.Errors, models.OrderError{
+	state.Errors = append(state.Errors, models.OrderErrorOrWarning{
+		OrderID:                 orderID,
+		Timestamp:               ts,
+		Code:                    code,
+		Message:                 message,
+		AdvancedOrderRejectJSON: advancedOrderRejectJSON,
+	})
+}
+
+// RecordOrderWarning appends an order-scoped API warning to the stored state.
+func (s *InMemoryOrderStore) RecordOrderWarning(
+	orderID int32, ts time.Time, code int, message string, advancedOrderRejectJSON string,
+) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	state := s.ensureOrderLocked(orderID, "", 0)
+	state.Warnings = append(state.Warnings, models.OrderErrorOrWarning{
 		OrderID:                 orderID,
 		Timestamp:               ts,
 		Code:                    code,
@@ -228,7 +246,10 @@ func cloneStoredOrder(state *StoredOrder) *StoredOrder {
 		clone.Executions = append([]*models.Execution(nil), state.Executions...)
 	}
 	if len(state.Errors) > 0 {
-		clone.Errors = append([]models.OrderError(nil), state.Errors...)
+		clone.Errors = append([]models.OrderErrorOrWarning(nil), state.Errors...)
+	}
+	if len(state.Warnings) > 0 {
+		clone.Warnings = append([]models.OrderErrorOrWarning(nil), state.Warnings...)
 	}
 	if len(state.CommissionAndFeeItems) > 0 {
 		clone.CommissionAndFeeItems = append([]*models.CommissionAndFeesReport(nil), state.CommissionAndFeeItems...)

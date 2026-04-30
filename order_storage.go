@@ -14,6 +14,7 @@ type OrderStore interface {
 	SetOrderPermanentID(orderID int32, clientID int32, permID int64)
 	UpdateOrderStatus(update models.OrderStatusUpdate)
 	RecordOrderError(orderID int32, ts time.Time, code int, message string, advancedOrderRejectJSON string)
+	RecordOrderWarning(orderID int32, ts time.Time, code int, message string, advancedOrderRejectJSON string)
 	RecordOpenOrder(contract *models.Contract, order *models.Order, orderState *models.OrderState)
 	RecordExecution(contract *models.Contract, execution *models.Execution)
 	RecordCommissionAndFeesReport(report *models.CommissionAndFeesReport)
@@ -32,6 +33,8 @@ func (noopOrderStore) SetOrderPermanentID(int32, int32, int64) {}
 func (noopOrderStore) UpdateOrderStatus(models.OrderStatusUpdate) {}
 
 func (noopOrderStore) RecordOrderError(int32, time.Time, int, string, string) {}
+
+func (noopOrderStore) RecordOrderWarning(int32, time.Time, int, string, string) {}
 
 func (noopOrderStore) RecordOpenOrder(*models.Contract, *models.Order, *models.OrderState) {}
 

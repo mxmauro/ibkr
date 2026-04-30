@@ -40,6 +40,33 @@ func wrapDecoderErr(decoderName string, err error) error {
 	return fmt.Errorf("%s decode failed: %w", decoderName, err)
 }
 
+func isWarningMessage(errMsg string) bool {
+	const warningPrefix = "Warning:"
+
+	for start := 0; start < len(errMsg); {
+		i := start
+		for i < len(errMsg) && (errMsg[i] == ' ' || errMsg[i] == '\t') {
+			i++
+		}
+		if len(errMsg)-i >= len(warningPrefix) && errMsg[i:i+len(warningPrefix)] == warningPrefix {
+			return true
+		}
+
+		for start < len(errMsg) && errMsg[start] != '\n' && errMsg[start] != '\r' {
+			start++
+		}
+		if start < len(errMsg) && errMsg[start] == '\r' {
+			start++
+			if start < len(errMsg) && errMsg[start] == '\n' {
+				start++
+			}
+		} else if start < len(errMsg) && errMsg[start] == '\n' {
+			start++
+		}
+	}
+	return false
+}
+
 func (c *Client) processIncomingMessage(msg []byte) error {
 	msgID, usingProtobuf, err := c.getIncomingMessageID(msg)
 	if err != nil {
@@ -829,21 +856,32 @@ func (c *Client) processErrorMessageCommon(
 		return c.processMarketDepthCommon(reqID, 0, models.MarketDepthDataOperationClear, false, 0, models.DecimalZero)
 	}
 
+	// Classify multiline order messages so warning-only updates do not fail requests.
+	isWarning := isWarningMessage(errMsg)
+
 	// Process the response
 	if reqID > 0 {
-		if c.reqMgr.withRequestWithID(reqID, func(_ interface{}) (bool, error) {
-			// Done
+		if (!isWarning) && c.reqMgr.withRequestWithID(reqID, func(_ interface{}) (bool, error) {
+			// Request-scoped hard errors should complete the pending request immediately.
 			return false, newRequestError(ts, code, errMsg, advancedOrderRejectJson)
 		}) {
 			return nil
 		}
 
-		c.orderStore.RecordOrderError(reqID, ts, code, errMsg, advancedOrderRejectJson)
+		if !isWarning {
+			c.orderStore.RecordOrderError(reqID, ts, code, errMsg, advancedOrderRejectJson)
+		} else {
+			c.orderStore.RecordOrderWarning(reqID, ts, code, errMsg, advancedOrderRejectJson)
+		}
 	}
 
 	// Notify
 	if c.eventsHandler != nil {
-		c.eventsHandler.Error(ts, code, errMsg, advancedOrderRejectJson)
+		if !isWarning {
+			c.eventsHandler.Error(ts, code, errMsg, advancedOrderRejectJson)
+		} else {
+			c.eventsHandler.Warning(ts, code, errMsg, advancedOrderRejectJson)
+		}
 	}
 
 	// Done

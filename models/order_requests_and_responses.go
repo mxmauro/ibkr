@@ -19,8 +19,8 @@ type OrderStatusUpdate struct {
 	MarketCapPrice float64
 }
 
-// OrderError captures an order-related error reported by IB.
-type OrderError struct {
+// OrderErrorOrWarning captures an order-related error reported by IB.
+type OrderErrorOrWarning struct {
 	OrderID                 int32
 	Timestamp               time.Time
 	Code                    int

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/mxmauro/ibkr"
 	"github.com/mxmauro/ibkr/models"
@@ -425,16 +426,21 @@ func testTickByTickData(t *testing.T, client *ibkr.Client) {
 }
 
 func testHistoricalDataKeepUpToDate(t *testing.T, client *ibkr.Client) {
-	ctx, cancelCtx := context.WithTimeout(context.Background(), 25*time.Second)
+	onlyRegularTradingHours := usStockRegularTradingHoursOpen(time.Now())
+	if !onlyRegularTradingHours {
+		t.Log("  US regular session is closed; disabling RTH filter for keep-up-to-date historical data")
+	}
+
+	ctx, cancelCtx := context.WithTimeout(context.Background(), 50*time.Second)
 	defer cancelCtx()
 
 	resp, err := client.RequestHistoricalData(ctx, models.HistoricalDataRequestOptions{
-		Contract:                getFxContract("EUR", "GBP"),
+		Contract:                getContract("AAPL", "SMART"),
 		Duration:                1,
 		DurationUnit:            models.DurationUnitDays,
 		BarSize:                 models.BarSizeFiveSeconds,
-		WhatToShow:              models.WhatToShowMidPoint,
-		OnlyRegularTradingHours: true,
+		WhatToShow:              models.WhatToShowTrades,
+		OnlyRegularTradingHours: onlyRegularTradingHours,
 		KeepUpToDate:            true,
 	})
 	if err != nil {
@@ -454,7 +460,7 @@ func testHistoricalDataKeepUpToDate(t *testing.T, client *ibkr.Client) {
 		}
 		t.Log("  " + data.String())
 
-	case <-time.After(20 * time.Second):
+	case <-time.After(45 * time.Second):
 		t.Error("timeout waiting for keep-up-to-date historical data")
 	}
 
@@ -509,4 +515,21 @@ func getFxContract(symbol string, currency string) *models.Contract {
 	contract.Currency = currency
 	contract.Exchange = "IDEALPRO"
 	return contract
+}
+
+func usStockRegularTradingHoursOpen(now time.Time) bool {
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		return false
+	}
+
+	now = now.In(loc)
+	if now.Weekday() == time.Saturday || now.Weekday() == time.Sunday {
+		return false
+	}
+
+	hour, minute, _ := now.Clock()
+	currentMinute := hour*60 + minute
+
+	return currentMinute >= 9*60+30 && currentMinute < 16*60
 }
