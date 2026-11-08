@@ -204,6 +204,9 @@ func (s *orderStoreSpy) hasWarningContaining(orderID int32, substr string) bool 
 
 func testPaperOrders(t *testing.T) {
 	skipIfLiveTrading(t, "order creation and manipulation tests are paper-only")
+	if !usStockRegularTradingHoursOpen(time.Now()) {
+		testSkip(t, "US regular session is closed; paper order lifecycle assertions are not reliable")
+	}
 
 	store := newOrderStoreSpy()
 	client := connectWithOrderStore(t, store)
@@ -230,9 +233,9 @@ func testPaperOrders(t *testing.T) {
 		Order:    order,
 	})
 	if err != nil {
-		t.Fatal(err)
+		testFatal(t, err)
 	}
-	t.Logf("  placed paper order %d with ref %s", orderID, orderRef)
+	testLogf(t, "  placed paper order %d with ref %s", orderID, orderRef)
 
 	waitForCondition(t, 20*time.Second, "order store create callback", func() bool {
 		return store.hasCreatedOrder(orderID, orderRef)
@@ -247,7 +250,7 @@ func testPaperOrders(t *testing.T) {
 		return false, ""
 	})
 	if store.hasErrorContaining(orderID, "Read-Only mode") {
-		t.Skip("paper gateway API is in Read-Only mode; order lifecycle tests require write access")
+		testSkip(t, "paper gateway API is in Read-Only mode; order lifecycle tests require write access")
 	}
 	waitForCondition(t, 30*time.Second, "open order callback", func() bool {
 		return store.hasOpenOrder(orderID)
@@ -257,27 +260,27 @@ func testPaperOrders(t *testing.T) {
 	})
 
 	if errs := store.errors(orderID); len(errs) > 0 {
-		t.Fatalf("unexpected order errors for %d: %v", orderID, errs)
+		testFatalf(t, "unexpected order errors for %d: %v", orderID, errs)
 	}
 
 	openOrders, err := client.RequestOpenOrders(ctx)
 	if err != nil {
-		t.Fatal(err)
+		testFatal(t, err)
 	}
 	if !containsOpenOrder(openOrders, orderID, orderRef) {
-		t.Fatalf("order %d was not returned by RequestOpenOrders", orderID)
+		testFatalf(t, "order %d was not returned by RequestOpenOrders", orderID)
 	}
 
 	if permID := store.permID(orderID); permID != 0 {
-		t.Logf("  permanent id: %d", permID)
+		testLogf(t, "  permanent id: %d", permID)
 	}
 
 	if err := client.CancelOrder(models.CancelOrderRequestOptions{
 		OrderID: orderID,
 	}); err != nil {
-		t.Fatal(err)
+		testFatal(t, err)
 	}
-	t.Logf("  cancel requested for order %d", orderID)
+	testLogf(t, "  cancel requested for order %d", orderID)
 
 	waitForCondition(t, 30*time.Second, "cancelled status", func() bool {
 		return store.hasStatus(orderID, "PendingCancel", "Cancelled", "ApiCancelled")
@@ -287,7 +290,7 @@ func testPaperOrders(t *testing.T) {
 			APIOnly: true,
 		})
 		if err != nil {
-			t.Fatalf("RequestCompletedOrders failed: %v", err)
+			testFatalf(t, "RequestCompletedOrders failed: %v", err)
 		}
 		if containsCompletedOrder(completedOrders, orderID, orderRef) {
 			return true
@@ -301,9 +304,9 @@ func testPaperOrders(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatal(err)
+		testFatal(t, err)
 	}
-	t.Logf("  executions returned: %d", len(executions.Executions))
+	testLogf(t, "  executions returned: %d", len(executions.Executions))
 }
 
 // -----------------------------------------------------------------------------
@@ -318,7 +321,7 @@ func waitForCondition(t *testing.T, timeout time.Duration, description string, c
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
-	t.Fatalf("timeout waiting for %s", description)
+	testFatalf(t, "timeout waiting for %s", description)
 }
 
 func waitForConditionOr(t *testing.T, timeout time.Duration, description string, cond func() (bool, string)) {
@@ -329,13 +332,13 @@ func waitForConditionOr(t *testing.T, timeout time.Duration, description string,
 		ok, reason := cond()
 		if ok {
 			if reason != "" {
-				t.Logf("  %s: %s", description, reason)
+				testLogf(t, "  %s: %s", description, reason)
 			}
 			return
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
-	t.Fatalf("timeout waiting for %s", description)
+	testFatalf(t, "timeout waiting for %s", description)
 }
 
 func containsOpenOrder(resp *models.OpenOrdersResponse, orderID int32, orderRef string) bool {

@@ -147,8 +147,7 @@ type Events interface {
 		// count - the number of trades during the bar's timespan (only available for TRADES).
 		RealtimeBar(reqID models.TickerID, time int64, open float64, high float64, low float64, close float64, volume models.Decimal, wap models.Decimal, count int64)
 
-		// FundamentalData
-		FundamentalData(reqID models.TickerID, data string)
+
 		// DeltaNeutralValidation
 		DeltaNeutralValidation(reqID int64, deltaNeutralContract models.DeltaNeutralContract)
 		// TickSnapshotEnd indicates the snapshot reception is finished.

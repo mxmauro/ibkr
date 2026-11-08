@@ -1,0 +1,38 @@
+package ibkr
+
+import "errors"
+
+// -----------------------------------------------------------------------------
+
+var (
+	errDuplicatePendingRequestID             = errors.New("duplicate pending request id")
+	errGenericTicksWithSnapshot              = errors.New("generic ticks cannot be used when requesting a snapshot")
+	errInvalidBarSize                        = errors.New("invalid bar size")
+	errInvalidClientID                       = errors.New("invalid client id")
+	errInvalidContract                       = errors.New("invalid contract")
+	errInvalidDuration                       = errors.New("invalid duration")
+	errInvalidDurationUnits                  = errors.New("invalid duration units")
+	errInvalidEndDate                        = errors.New("invalid end date")
+	errInvalidHostPortAddress                = errors.New("invalid host:port address")
+	errInvalidMarketDataType                 = errors.New("invalid market data type")
+	errInvalidMarketRuleID                   = errors.New("invalid market rule id")
+	errInvalidNumberOfTicks                  = errors.New("invalid number of ticks")
+	errInvalidOpenOrdersRequest              = errors.New("invalid open orders request")
+	errInvalidOptionalCapabilities           = errors.New("invalid optional capabilities")
+	errInvalidOrder                          = errors.New("invalid order")
+	errInvalidOrderAction                    = errors.New("invalid order action")
+	errInvalidOrderID                        = errors.New("invalid order id")
+	errInvalidOrderType                      = errors.New("invalid order type")
+	errInvalidReceivedMessage                = errors.New("received invalid message")
+	errInvalidRequestID                      = errors.New("invalid request id")
+	errInvalidRowsCount                      = errors.New("invalid rows count")
+	errInvalidStartDate                      = errors.New("invalid start date")
+	errInvalidTickByTickType                 = errors.New("invalid tick by tick type")
+	errInvalidTotalQuantity                  = errors.New("invalid total quantity")
+	errInvalidTzOffset                       = errors.New("invalid tz offset")
+	errInvalidUnderlyingContractID           = errors.New("invalid underlying contract id")
+	errInvalidUnderlyingSecurityType         = errors.New("invalid underlying security type")
+	errInvalidUnderlyingSymbol               = errors.New("invalid underlying symbol")
+	errInvalidWhatToShow                     = errors.New("invalid what to show")
+	errUnsupportedNextValidIDMessageProtobuf = errors.New("unsupported NEXT_VALID_ID message with protobuf")
+)

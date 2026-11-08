@@ -2,7 +2,6 @@ package ibkr
 
 import (
 	"context"
-	"errors"
 	"net"
 
 	"github.com/mxmauro/ibkr/common"
@@ -19,19 +18,19 @@ func (c *Client) PlaceOrder(opts models.PlaceOrderRequestOptions) (int32, error)
 	var msgEnc *message.Encoder
 
 	if opts.Contract == nil {
-		return 0, errors.New("invalid contract")
+		return 0, errInvalidContract
 	}
 	if opts.Order == nil {
-		return 0, errors.New("invalid order")
+		return 0, errInvalidOrder
 	}
 	if len(opts.Order.Action) == 0 {
-		return 0, errors.New("invalid order action")
+		return 0, errInvalidOrderAction
 	}
 	if len(opts.Order.OrderType) == 0 {
-		return 0, errors.New("invalid order type")
+		return 0, errInvalidOrderType
 	}
 	if opts.Order.TotalQuantity == nil {
-		return 0, errors.New("invalid total quantity")
+		return 0, errInvalidTotalQuantity
 	}
 
 	if !c.rp.Acquire() {
@@ -85,7 +84,7 @@ func (c *Client) CancelOrder(opts models.CancelOrderRequestOptions) error {
 	var msgEnc *message.Encoder
 
 	if opts.OrderID <= 0 {
-		return errors.New("invalid order id")
+		return errInvalidOrderID
 	}
 
 	if !c.rp.Acquire() {
@@ -357,7 +356,7 @@ func (c *Client) requestOpenOrdersCommon(
 		}
 	}
 	if msgEnc == nil {
-		return nil, errors.New("invalid open orders request")
+		return nil, errInvalidOpenOrdersRequest
 	}
 	if msgEnc.Err() != nil {
 		return nil, msgEnc.Err()

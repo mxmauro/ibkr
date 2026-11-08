@@ -23,14 +23,14 @@ func newStopWatchMeasure(t *testing.T, sw *stopwatchImpl) *StopWatchMeasure {
 		sw:        sw,
 		startTime: sw.Elapsed(),
 	}
-	t.Log("Start time: " + swm.toHuman(swm.startTime))
+	testLog(t, "Start time: "+swm.toHuman(swm.startTime))
 	return swm
 }
 
 func (swm *StopWatchMeasure) End() {
 	swm.t.Helper()
 	stopTime := swm.sw.Elapsed()
-	swm.t.Log("Stop time: " + swm.toHuman(stopTime) + " / Elapsed: " + swm.toHuman(stopTime-swm.startTime))
+	testLog(swm.t, "Stop time: "+swm.toHuman(stopTime)+" / Elapsed: "+swm.toHuman(stopTime-swm.startTime))
 }
 
 func (swm *StopWatchMeasure) toHuman(duration time.Duration) string {

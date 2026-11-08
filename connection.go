@@ -3,7 +3,6 @@ package ibkr
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"math/rand/v2"
 	"net"
@@ -156,7 +155,7 @@ func (c *Client) waitUntilNextReqID(ctx context.Context, conn *connection.Connec
 		}
 		if msgID == common.NEXT_VALID_ID {
 			if usingProtobuf {
-				return errors.New("unsupported NEXT_VALID_ID message with protobuf")
+				return errUnsupportedNextValidIDMessageProtobuf
 			}
 			msgDec := message.NewDecoder(msg[4:])
 			reqID := msgDec.Int32()
@@ -247,10 +246,13 @@ func (c *Client) sendRequest(msg []byte, req *Request) error {
 	}
 
 	// Add to the active requests map
-	c.reqMgr.addRequest(req)
+	err := c.reqMgr.addRequest(req)
+	if err != nil {
+		return err
+	}
 
 	// Send the message
-	err := c.conn.Send(msg)
+	err = c.conn.Send(msg)
 	if err != nil {
 		// On error remove the request from the active requests map
 		c.reqMgr.removeRequest(req, err)

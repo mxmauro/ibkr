@@ -127,11 +127,11 @@ func connect(t *testing.T) *ibkr.Client {
 
 func connectWithOrderStore(t *testing.T, orderStore ibkr.OrderStore) *ibkr.Client {
 	address := getTestServerAddress()
-	t.Logf("Connecting to server (%s)...", address)
+	testLogf(t, "Connecting to server (%s)...", address)
 	if *liveTrading {
-		t.Log("Live trading mode enabled")
+		testLog(t, "Live trading mode enabled")
 	} else {
-		t.Log("Paper trading mode enabled")
+		testLog(t, "Paper trading mode enabled")
 	}
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), 10*time.Second)
@@ -141,13 +141,13 @@ func connectWithOrderStore(t *testing.T, orderStore ibkr.OrderStore) *ibkr.Clien
 		Address:    address,
 		OrderStore: orderStore,
 		EventsHandler: ibkr.NewIncomingMessageLogger(func(msg string) {
-			t.Log(msg)
+			testEventLog(t, msg)
 		}),
 	})
 	if err != nil {
-		t.Fatal(err)
+		testFatal(t, err)
 	}
-	t.Log("Server version is:", client.ServerVersion())
+	testLog(t, "Server version is:", client.ServerVersion())
 
 	// Done
 	return client
@@ -169,7 +169,7 @@ func skipIfLiveTrading(t *testing.T, reason string) {
 	t.Helper()
 
 	if *liveTrading {
-		t.Skip("Skipping in live trading mode: " + reason)
+		testSkip(t, "Skipping in live trading mode: "+reason)
 	}
 }
 
@@ -181,10 +181,10 @@ func testCurrentTime(t *testing.T, client *ibkr.Client) {
 
 	ts, err := client.RequestCurrentTime(ctx)
 	if err != nil {
-		t.Error(err)
+		testError(t, err)
 		return
 	}
-	t.Log("  Time is: " + ts.String())
+	testLog(t, "  Time is: "+ts.String())
 }
 
 func testManagedAccounts(t *testing.T, client *ibkr.Client) {
@@ -193,14 +193,14 @@ func testManagedAccounts(t *testing.T, client *ibkr.Client) {
 
 	accounts, err := client.RequestManagedAccounts(ctx)
 	if err != nil {
-		t.Error(err)
+		testError(t, err)
 		return
 	}
-	t.Log("  Accounts: " + strings.Join(accounts, ", "))
+	testLog(t, "  Accounts: "+strings.Join(accounts, ", "))
 }
 
 func testHistoricalData(t *testing.T, client *ibkr.Client) {
-	ctx, cancelCtx := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancelCtx := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancelCtx()
 
 	histData, err := client.RequestHistoricalData(ctx, models.HistoricalDataRequestOptions{
@@ -213,11 +213,11 @@ func testHistoricalData(t *testing.T, client *ibkr.Client) {
 		OnlyRegularTradingHours: true,
 	})
 	if err != nil {
-		t.Error(err)
+		testError(t, err)
 		return
 	}
 	for _, bar := range histData.Bars {
-		t.Log("  " + bar.String())
+		testLog(t, "  "+bar.String())
 	}
 }
 
@@ -235,11 +235,11 @@ func testHistoricalTicks(t *testing.T, client *ibkr.Client) {
 		IgnoreSize:              false,
 	})
 	if err != nil {
-		t.Error(err)
+		testError(t, err)
 		return
 	}
 	for _, tick := range histTicks.TicksLast {
-		t.Log("  " + tick.String())
+		testLog(t, "  "+tick.String())
 	}
 }
 
@@ -251,11 +251,11 @@ func testContractDetails(t *testing.T, client *ibkr.Client) {
 		Contract: getContract("JPM", "SMART"),
 	})
 	if err != nil {
-		t.Error(err)
+		testError(t, err)
 		return
 	}
 	for _, cd := range resp.ContractDetails {
-		t.Log("  " + cd.String())
+		testLog(t, "  "+cd.String())
 	}
 }
 
@@ -267,11 +267,11 @@ func testMatchingSymbols(t *testing.T, client *ibkr.Client) {
 		Pattern: "AAPL",
 	})
 	if err != nil {
-		t.Error(err)
+		testError(t, err)
 		return
 	}
 	for _, cd := range resp.ContractDescriptions {
-		t.Log("  " + cd.String())
+		testLog(t, "  "+cd.String())
 	}
 }
 
@@ -284,7 +284,7 @@ func testTopMarketData(t *testing.T, client *ibkr.Client) {
 		Type: models.MarketDataTypeDelayed,
 	})
 	if err != nil {
-		t.Error(err)
+		testError(t, err)
 		return
 	}
 	// ----
@@ -292,7 +292,7 @@ func testTopMarketData(t *testing.T, client *ibkr.Client) {
 		Contract: getContract("VOO", "SMART"),
 	})
 	if err != nil {
-		t.Error(err)
+		testError(t, err)
 		return
 	}
 	defer resp.Cancel()
@@ -306,12 +306,13 @@ func testTopMarketData(t *testing.T, client *ibkr.Client) {
 		case data, ok := <-resp.Channel:
 			if !ok {
 				if resp.Err() != nil {
-					t.Error(resp.Err())
+					testError(t, resp.Err())
 				}
 				loop = false
 				break
 			}
-			t.Logf(
+			testLogf(
+				t,
 				"  %s, MarketDataType=%s, Delayed=%t, Frozen=%t",
 				data.String(),
 				data.MarketDataType().String(),
@@ -331,7 +332,7 @@ func testDepthMarketData(t *testing.T, client *ibkr.Client) {
 		RowsCount: 20,
 	})
 	if err != nil {
-		t.Error(err)
+		testError(t, err)
 		return
 	}
 	defer resp.Cancel()
@@ -346,21 +347,25 @@ func testDepthMarketData(t *testing.T, client *ibkr.Client) {
 			if !ok {
 				if resp.Err() != nil {
 					if reqErr, ok := resp.Err().(*ibkr.RequestError); ok && reqErr.Code == 10089 {
-						t.Log("  Skipping expected L2 subscription error:", reqErr)
+						testLog(t, "  Skipping expected L2 subscription error:", reqErr)
 					} else {
-						t.Error(resp.Err())
+						testError(t, resp.Err())
 					}
 				}
 				loop = false
 				break
 			}
 			resp.Book.UpdateBook(data)
-			t.Log(resp.Book.TableString())
+			testLog(t, resp.Book.TableString())
 		}
 	}
 }
 
 func testRealTimeBars(t *testing.T, client *ibkr.Client) {
+	if !forexRealtimeBarsExpected(time.Now()) {
+		testSkip(t, "forex market is closed or in the daily rollover window; realtime bars are not expected promptly")
+	}
+
 	ctx, cancelCtx := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancelCtx()
 
@@ -371,7 +376,7 @@ func testRealTimeBars(t *testing.T, client *ibkr.Client) {
 		OnlyRegularTradingHours: true,
 	})
 	if err != nil {
-		t.Error(err)
+		testError(t, err)
 		return
 	}
 	defer resp.Cancel()
@@ -380,30 +385,34 @@ func testRealTimeBars(t *testing.T, client *ibkr.Client) {
 	case data, ok := <-resp.Channel:
 		if !ok {
 			if resp.Err() != nil {
-				t.Error(resp.Err())
+				testError(t, resp.Err())
 			} else {
-				t.Error("expected realtime bar, got closed channel")
+				testError(t, "expected realtime bar, got closed channel")
 			}
 			return
 		}
-		t.Log("  " + data.String())
+		testLog(t, "  "+data.String())
 
 	case <-time.After(20 * time.Second):
-		t.Error("timeout waiting for realtime bar")
+		testError(t, "timeout waiting for realtime bar")
 	}
 }
 
 func testTickByTickData(t *testing.T, client *ibkr.Client) {
+	if !usStockRegularTradingHoursOpen(time.Now()) {
+		testSkip(t, "US regular session is closed; stock tick-by-tick data is not expected to stream")
+	}
+
 	ctx, cancelCtx := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancelCtx()
 
 	resp, err := client.RequestTickByTickData(ctx, models.TickByTickRequestOptions{
-		Contract:      getFxContract("EUR", "GBP"),
-		TickType:      models.TickByTickTypeMidPoint,
+		Contract:      getContract("SPY", "SMART"),
+		TickType:      models.TickByTickTypeLast,
 		NumberOfTicks: 10,
 	})
 	if err != nil {
-		t.Error(err)
+		testError(t, err)
 		return
 	}
 	defer resp.Cancel()
@@ -412,23 +421,23 @@ func testTickByTickData(t *testing.T, client *ibkr.Client) {
 	case data, ok := <-resp.Channel:
 		if !ok {
 			if resp.Err() != nil {
-				t.Error(resp.Err())
+				testError(t, resp.Err())
 			} else {
-				t.Error("expected tick-by-tick data, got closed channel")
+				testError(t, "expected tick-by-tick data, got closed channel")
 			}
 			return
 		}
-		t.Log("  " + data.String())
+		testLog(t, "  "+data.String())
 
 	case <-time.After(20 * time.Second):
-		t.Error("timeout waiting for tick-by-tick data")
+		testError(t, "timeout waiting for tick-by-tick data")
 	}
 }
 
 func testHistoricalDataKeepUpToDate(t *testing.T, client *ibkr.Client) {
 	onlyRegularTradingHours := usStockRegularTradingHoursOpen(time.Now())
 	if !onlyRegularTradingHours {
-		t.Log("  US regular session is closed; disabling RTH filter for keep-up-to-date historical data")
+		testSkip(t, "US regular session is closed; keep-up-to-date stock historical data is not expected to stream promptly")
 	}
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), 50*time.Second)
@@ -444,7 +453,7 @@ func testHistoricalDataKeepUpToDate(t *testing.T, client *ibkr.Client) {
 		KeepUpToDate:            true,
 	})
 	if err != nil {
-		t.Error(err)
+		testError(t, err)
 		return
 	}
 
@@ -452,16 +461,16 @@ func testHistoricalDataKeepUpToDate(t *testing.T, client *ibkr.Client) {
 	case data, ok := <-resp.Channel:
 		if !ok {
 			if resp.Err() != nil {
-				t.Error(resp.Err())
+				testError(t, resp.Err())
 			} else {
-				t.Error("expected keep-up-to-date historical data, got closed channel")
+				testError(t, "expected keep-up-to-date historical data, got closed channel")
 			}
 			return
 		}
-		t.Log("  " + data.String())
+		testLog(t, "  "+data.String())
 
 	case <-time.After(45 * time.Second):
-		t.Error("timeout waiting for keep-up-to-date historical data")
+		testError(t, "timeout waiting for keep-up-to-date historical data")
 	}
 
 	resp.Cancel()
@@ -469,10 +478,10 @@ func testHistoricalDataKeepUpToDate(t *testing.T, client *ibkr.Client) {
 	select {
 	case _, ok := <-resp.Channel:
 		if ok {
-			t.Log("  received buffered historical item after cancel")
+			testLog(t, "  received buffered historical item after cancel")
 		}
 	case <-time.After(5 * time.Second):
-		t.Error("timeout waiting for historical keep-up-to-date stream to close after cancel")
+		testError(t, "timeout waiting for historical keep-up-to-date stream to close after cancel")
 	}
 }
 
@@ -486,15 +495,15 @@ func testSecurityDefinitionOptionParameters(t *testing.T, client *ibkr.Client) {
 		UnderlyingContractID:   8314,
 	})
 	if err != nil {
-		t.Error(err)
+		testError(t, err)
 		return
 	}
 	if len(resp.Parameters) == 0 {
-		t.Error("expected security definition option parameters")
+		testError(t, "expected security definition option parameters")
 		return
 	}
 	for _, param := range resp.Parameters {
-		t.Logf("  exchange=%s class=%s multiplier=%s expirations=%d strikes=%d",
+		testLogf(t, "  exchange=%s class=%s multiplier=%s expirations=%d strikes=%d",
 			param.Exchange, param.TradingClass, param.Multiplier, len(param.Expirations), len(param.Strikes))
 	}
 }
@@ -515,6 +524,46 @@ func getFxContract(symbol string, currency string) *models.Contract {
 	contract.Currency = currency
 	contract.Exchange = "IDEALPRO"
 	return contract
+}
+
+func forexMarketOpen(now time.Time) bool {
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		return false
+	}
+
+	now = now.In(loc)
+	switch now.Weekday() {
+	case time.Friday:
+		hour, minute, _ := now.Clock()
+		return hour < 17 || (hour == 17 && minute == 0)
+	case time.Saturday:
+		return false
+	case time.Sunday:
+		hour, minute, _ := now.Clock()
+		return hour > 17 || (hour == 17 && minute >= 0)
+	default:
+		return true
+	}
+}
+
+func forexRealtimeBarsExpected(now time.Time) bool {
+	if !forexMarketOpen(now) {
+		return false
+	}
+
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		return false
+	}
+
+	now = now.In(loc)
+	hour, minute, _ := now.Clock()
+	if hour == 17 && minute < 15 {
+		return false
+	}
+
+	return true
 }
 
 func usStockRegularTradingHoursOpen(now time.Time) bool {

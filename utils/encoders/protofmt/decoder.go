@@ -35,6 +35,10 @@ func NewDecoder(msg []byte) *Decoder {
 	return &d
 }
 
+func (d *Decoder) RawBytes() []byte {
+	return append([]byte(nil), d.msg...)
+}
+
 func (d *Decoder) Unmarshal(m proto.Message) {
 	err := protoUnmarshaller.Unmarshal(d.msg, m)
 	if err != nil {

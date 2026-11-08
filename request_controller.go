@@ -18,22 +18,25 @@ type RequestManager struct {
 }
 
 type Request struct {
-	_type       RequestType
-	id          int32
-	msgCode     int
-	done        int32
-	completedCh chan struct{}
-	completeCB  RequestCompleteCallback
-	errHolder   atomic.Value
-	responseMtx sync.Mutex
-	response    interface{}
+	_type        RequestType
+	id           int32
+	marketRuleID int64
+	msgCode      int
+	done         int32
+	completedCh  chan struct{}
+	completeCB   RequestCompleteCallback
+	errHolder    atomic.Value
+	responseMtx  sync.Mutex
+	response     interface{}
 }
 
 type RequestOptions struct {
-	Type       RequestType
-	MsgCode    int
-	Response   interface{}
-	CompleteCB RequestCompleteCallback
+	Type         RequestType
+	ID           int32
+	MarketRuleID int64
+	MsgCode      int
+	Response     interface{}
+	CompleteCB   RequestCompleteCallback
 }
 
 type NonIdRequestList struct {
@@ -43,7 +46,7 @@ type NonIdRequestList struct {
 type WithRequestWithIdCallback func(resp interface{}) (done bool, err error)
 type WithRequestWithoutIdCallback func(resp interface{}) (err error)
 type WithFirstRequestWithoutIdCallback func(resp interface{}) (done bool, err error)
-type WithRequestWithTickerIdCallback func(resp interface{}) (done bool, err error)
+type RequestMatchCallback func(req *Request) bool
 
 type RequestCompleteCallback func(req *Request, err error)
 
@@ -66,13 +69,19 @@ func (c *Client) initRequestManager() {
 }
 
 func (c *Client) createRequest(opts RequestOptions) *Request {
+	reqID := opts.ID
+	if reqID <= 0 {
+		reqID = c.getNextRequestID(opts.Type)
+	}
+
 	req := &Request{
-		_type:       opts.Type,
-		id:          c.getNextRequestID(opts.Type),
-		msgCode:     opts.MsgCode,
-		completeCB:  opts.CompleteCB,
-		responseMtx: sync.Mutex{},
-		response:    opts.Response,
+		_type:        opts.Type,
+		id:           reqID,
+		marketRuleID: opts.MarketRuleID,
+		msgCode:      opts.MsgCode,
+		completeCB:   opts.CompleteCB,
+		responseMtx:  sync.Mutex{},
+		response:     opts.Response,
 	}
 	req.completedCh = make(chan struct{})
 	return req
@@ -125,7 +134,7 @@ func (c *Client) waitRequestCompletion(ctx context.Context, req *Request) error 
 	return nil
 }
 
-func (rm *RequestManager) addRequest(req *Request) {
+func (rm *RequestManager) addRequest(req *Request) error {
 	rm.mtx.Lock()
 	defer rm.mtx.Unlock()
 
@@ -133,6 +142,9 @@ func (rm *RequestManager) addRequest(req *Request) {
 	case RequestTypeRequestWithID:
 		fallthrough
 	case RequestTypeRequestWithTickerID:
+		if existingReq, ok := rm.reqsWithID[req.id]; ok && existingReq.Err() == nil {
+			return errDuplicatePendingRequestID
+		}
 		rm.reqsWithID[req.id] = req
 
 	case RequestTypeRequestWithoutID:
@@ -140,13 +152,13 @@ func (rm *RequestManager) addRequest(req *Request) {
 		var ok bool
 
 		if l, ok = rm.reqsWithoutID[req.msgCode]; !ok {
-			l = &NonIdRequestList{
-				List: list.List{},
-			}
+			l = &NonIdRequestList{List: list.List{}}
 			rm.reqsWithoutID[req.msgCode] = l
 		}
 		l.queueRequest(req)
 	}
+
+	return nil
 }
 
 func (rm *RequestManager) removeRequest(req *Request, err error) {
@@ -164,7 +176,6 @@ func (rm *RequestManager) removeRequest(req *Request, err error) {
 	}
 	rm.mtx.Unlock()
 
-	// Complete it
 	req.complete(err)
 }
 
@@ -238,15 +249,46 @@ func (rm *RequestManager) withRequestWithoutID(msgCode int, cb WithRequestWithou
 	req.complete(err)
 }
 
+func (rm *RequestManager) withAllRequestsWithoutID(msgCode int, cb WithRequestWithoutIdCallback) int {
+	return rm.withAllMatchingRequestsWithoutID(msgCode, nil, cb)
+}
+
+func (rm *RequestManager) withAllMatchingRequestsWithoutID(msgCode int, match RequestMatchCallback, cb WithRequestWithoutIdCallback) int {
+	var reqs []*Request
+
+	rm.mtx.Lock()
+	if l, ok := rm.reqsWithoutID[msgCode]; ok {
+		reqs = l.popAllMatchingRequests(match)
+	}
+	rm.mtx.Unlock()
+
+	completed := 0
+	for _, req := range reqs {
+		if req == nil || req.Err() != nil {
+			continue
+		}
+
+		req.responseMtx.Lock()
+		if req.response == nil {
+			req.responseMtx.Unlock()
+			continue
+		}
+		err := cb(req.response)
+		req.responseMtx.Unlock()
+
+		req.complete(err)
+		completed++
+	}
+
+	return completed
+}
+
 func (rm *RequestManager) withFirstRequestWithoutID(msgCode int, cb WithFirstRequestWithoutIdCallback) bool {
 	var req *Request
 
 	rm.mtx.Lock()
 	if l, ok := rm.reqsWithoutID[msgCode]; ok {
-		elem := l.List.Front()
-		if elem != nil {
-			req = elem.Value.(*Request)
-		}
+		req = l.firstMatchingRequest(nil)
 	}
 	rm.mtx.Unlock()
 
@@ -263,6 +305,32 @@ func (rm *RequestManager) withFirstRequestWithoutID(msgCode int, cb WithFirstReq
 	req.responseMtx.Unlock()
 
 	if done || err != nil {
+		rm.removeRequest(req, err)
+	}
+	return true
+}
+
+func (rm *RequestManager) withActiveFirstRequestWithoutID(msgCode int, cb WithRequestWithoutIdCallback) bool {
+	var req *Request
+
+	rm.mtx.Lock()
+	if l, ok := rm.reqsWithoutID[msgCode]; ok {
+		req = l.firstMatchingRequest(nil)
+	}
+	rm.mtx.Unlock()
+
+	if req == nil || req.Err() != nil {
+		return false
+	}
+
+	req.responseMtx.Lock()
+	if req.response == nil {
+		req.responseMtx.Unlock()
+		return false
+	}
+	err := cb(req.response)
+	req.responseMtx.Unlock()
+	if err != nil {
 		rm.removeRequest(req, err)
 	}
 	return true
@@ -325,6 +393,41 @@ func (nirl *NonIdRequestList) popFirstRequest() *Request {
 	}
 	nirl.List.Remove(elem)
 	return elem.Value.(*Request)
+}
+
+func (nirl *NonIdRequestList) firstMatchingRequest(match RequestMatchCallback) *Request {
+	for elem := nirl.List.Front(); elem != nil; elem = elem.Next() {
+		req := elem.Value.(*Request)
+		if match == nil || match(req) {
+			return req
+		}
+	}
+	return nil
+}
+
+func (nirl *NonIdRequestList) popFirstMatchingRequest(match RequestMatchCallback) *Request {
+	for elem := nirl.List.Front(); elem != nil; elem = elem.Next() {
+		req := elem.Value.(*Request)
+		if match == nil || match(req) {
+			nirl.List.Remove(elem)
+			return req
+		}
+	}
+	return nil
+}
+
+func (nirl *NonIdRequestList) popAllMatchingRequests(match RequestMatchCallback) []*Request {
+	matched := make([]*Request, 0)
+	for elem := nirl.List.Front(); elem != nil; {
+		next := elem.Next()
+		req := elem.Value.(*Request)
+		if match == nil || match(req) {
+			nirl.List.Remove(elem)
+			matched = append(matched, req)
+		}
+		elem = next
+	}
+	return matched
 }
 
 func (nirl *NonIdRequestList) removeRequest(id int32) {

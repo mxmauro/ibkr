@@ -16,6 +16,94 @@ type ManagedAccountsResponse struct {
 	Accounts []string
 }
 
+// Position describes a position snapshot row returned by reqPositions.
+type Position struct {
+	Account  string
+	Contract *Contract
+	Position Decimal
+	AvgCost  float64
+}
+
+// PositionsResponse contains all returned positions.
+type PositionsResponse struct {
+	Positions []Position
+}
+
+// AccountSummaryRequestOptions configures an account summary query.
+type AccountSummaryRequestOptions struct {
+	Group string
+	Tags  string
+}
+
+// AccountSummaryValue describes one account summary row.
+type AccountSummaryValue struct {
+	Account  string
+	Tag      string
+	Value    string
+	Currency string
+}
+
+// AccountSummaryResponse contains all returned account summary rows.
+type AccountSummaryResponse struct {
+	Values []AccountSummaryValue
+}
+
+// AccountUpdatesRequestOptions configures an account updates stream.
+type AccountUpdatesRequestOptions struct {
+	AccountCode string
+	Subscribe   bool
+}
+
+// AccountUpdateEvent marks streamed account update events.
+type AccountUpdateEvent interface {
+	isAccountUpdateEvent()
+}
+
+// AccountValueUpdate reports an account value update.
+type AccountValueUpdate struct {
+	Tag         string
+	Value       string
+	Currency    string
+	AccountName string
+}
+
+func (AccountValueUpdate) isAccountUpdateEvent() {}
+
+// PortfolioUpdate reports a portfolio position update.
+type PortfolioUpdate struct {
+	Contract      *Contract
+	Position      Decimal
+	MarketPrice   float64
+	MarketValue   float64
+	AverageCost   float64
+	UnrealizedPNL float64
+	RealizedPNL   float64
+	AccountName   string
+}
+
+func (PortfolioUpdate) isAccountUpdateEvent() {}
+
+// AccountTimeUpdate reports the account update timestamp.
+type AccountTimeUpdate struct {
+	TimeStamp string
+}
+
+func (AccountTimeUpdate) isAccountUpdateEvent() {}
+
+// AccountDownloadEndUpdate marks the initial account update download completion.
+type AccountDownloadEndUpdate struct {
+	AccountName string
+}
+
+func (AccountDownloadEndUpdate) isAccountUpdateEvent() {}
+
+// AccountUpdatesResponse exposes the account updates stream and controls.
+type AccountUpdatesResponse struct {
+	Channel chan AccountUpdateEvent
+	Cancel  CancelFunc
+	Err     ErrFunc
+}
+
 // HistoricalDataRequestOptions configures a historical bar request.
 type HistoricalDataRequestOptions struct {
 	Contract                *Contract
@@ -156,11 +244,43 @@ type SecurityDefinitionOptionParametersResponse struct {
 
 // HeadTimestampRequestOptions configures a head timestamp request.
 type HeadTimestampRequestOptions struct {
+	Contract                *Contract
+	WhatToShow              WhatToShow
+	OnlyRegularTradingHours bool
+	FormatDate              int
 }
 
 // HeadTimestampResponse contains the oldest timestamp available for a data request.
 type HeadTimestampResponse struct {
 	Timestamp time.Time
+}
+
+// HistogramDataRequestOptions configures a histogram data query.
+type HistogramDataRequestOptions struct {
+	Contract                *Contract
+	OnlyRegularTradingHours bool
+	TimePeriod              string
+}
+
+// HistogramDataResponse contains the returned histogram buckets.
+type HistogramDataResponse struct {
+	Data []HistogramData
+}
+
+// MktDepthExchangesResponse contains the returned market depth exchanges metadata.
+type MktDepthExchangesResponse struct {
+	Exchanges []DepthMktDataDescription
+}
+
+// SmartComponentsRequestOptions configures a smart components lookup.
+type SmartComponentsRequestOptions struct {
+	BBOExchange string
+}
+
+// SmartComponentsResponse contains the returned smart routing components.
+type SmartComponentsResponse struct {
+	ReqID      int32
+	Components []SmartComponent
 }
 
 // CancelFunc cancels an active streaming request.

@@ -344,12 +344,6 @@ func (el *EventsLogger) CurrentTime(t time.Time) {
 		msg("<CurrentTime>")
 }
 
-func (el *EventsLogger) FundamentalData(reqID int64, data string) {
-	el.build().
-		int64("ReqID", reqID).
-		str("Data", data).
-		msg("<FundamentalData>")
-}
 
 func (el *EventsLogger) DeltaNeutralValidation(reqID int64, deltaNeutralContract models.DeltaNeutralContract) {
 	el.build().
