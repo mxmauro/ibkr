@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"io"
-	"math"
 	"net"
 	"os"
 	"path/filepath"
@@ -13,18 +12,21 @@ import (
 	"testing"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protowire"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/mxmauro/ibkr/common"
 	"github.com/mxmauro/ibkr/connection"
 	"github.com/mxmauro/ibkr/models"
+	"github.com/mxmauro/ibkr/proto/protobuf"
 	"github.com/mxmauro/ibkr/utils/encoders/message"
 	"github.com/mxmauro/ibkr/utils/encoders/protofmt"
 	"github.com/mxmauro/resetevent"
 )
 
+// -----------------------------------------------------------------------------
+
 func TestRequestMarketRuleCompletesFromTextReply(t *testing.T) {
-	client, serverConn, cleanup := newMarketRuleRequestTestClient(t)
+	client, serverConn, cleanup := newMarketRuleRequestTestClientWithVersion(t, common.ServerVersionProtobufRestMessages2-1)
 	defer cleanup()
 
 	resultCh := make(chan struct {
@@ -75,7 +77,7 @@ func TestRequestMarketRuleCompletesFromProtobufReply(t *testing.T) {
 	}()
 
 	payload := readFramedPayload(t, serverConn)
-	assertMarketRuleRequestPayload(t, payload, 42)
+	assertProtobufMarketRuleRequestPayload(t, payload, 42)
 
 	if err := client.processIncomingMessage(buildProtoMarketRuleMessage(42, []models.PriceIncrement{{LowEdge: 0.5, Increment: 0.01}})); err != nil {
 		t.Fatalf("processIncomingMessage failed: %v", err)
@@ -120,11 +122,11 @@ func TestRequestMarketRuleCompletesAllDuplicatePendingRequestsOnFirstReply(t *te
 		}{resp: resp, err: err}
 	}()
 
-	assertMarketRuleRequestPayload(t, readFramedPayload(t, serverConn), 15)
-	assertMarketRuleRequestPayload(t, readFramedPayload(t, serverConn), 15)
+	assertProtobufMarketRuleRequestPayload(t, readFramedPayload(t, serverConn), 15)
+	assertProtobufMarketRuleRequestPayload(t, readFramedPayload(t, serverConn), 15)
 
 	increments := []models.PriceIncrement{{LowEdge: 0, Increment: 0.25}}
-	if err := client.processIncomingMessage(buildTextMarketRuleMessage(15, increments)); err != nil {
+	if err := client.processIncomingMessage(buildProtoMarketRuleMessage(15, increments)); err != nil {
 		t.Fatalf("processIncomingMessage failed: %v", err)
 	}
 
@@ -199,6 +201,10 @@ func TestFundamentalsRemainUnsupportedAndDocumented(t *testing.T) {
 }
 
 func newMarketRuleRequestTestClient(t *testing.T) (*Client, net.Conn, func()) {
+	return newMarketRuleRequestTestClientWithVersion(t, common.ServerVersionProtobufRestMessages2)
+}
+
+func newMarketRuleRequestTestClientWithVersion(t *testing.T, serverVersion int32) (*Client, net.Conn, func()) {
 	t.Helper()
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -242,7 +248,7 @@ func newMarketRuleRequestTestClient(t *testing.T) (*Client, net.Conn, func()) {
 	client := &Client{
 		conn:             conn,
 		isDisconnectedEv: resetevent.NewManualResetEvent(),
-		serverVersion:    common.ServerVersionProtobufRestMessages2,
+		serverVersion:    serverVersion,
 	}
 	client.rp.Initialize()
 	client.initRequestManager()
@@ -289,6 +295,20 @@ func assertMarketRuleRequestPayload(t *testing.T, payload []byte, marketRuleID i
 	}
 }
 
+func assertProtobufMarketRuleRequestPayload(t *testing.T, payload []byte, marketRuleID int64) {
+	t.Helper()
+	if got := binary.BigEndian.Uint32(payload[:4]); got != common.REQ_MARKET_RULE+common.PROTOBUF_MSG_ID {
+		t.Fatalf("unexpected outbound msg id: got %d", got)
+	}
+	pb := &protobuf.MarketRuleRequest{}
+	if err := proto.Unmarshal(payload[4:], pb); err != nil {
+		t.Fatalf("failed decoding protobuf market rule request: %v", err)
+	}
+	if got := pb.GetMarketRuleId(); got != int32(marketRuleID) {
+		t.Fatalf("unexpected outbound market rule id: got %d want %d", got, marketRuleID)
+	}
+}
+
 func buildTextMarketRuleMessage(marketRuleID int64, increments []models.PriceIncrement) []byte {
 	msgEnc := message.NewRawEncoder().
 		RawUInt32(common.MARKET_RULE).
@@ -301,23 +321,14 @@ func buildTextMarketRuleMessage(marketRuleID int64, increments []models.PriceInc
 }
 
 func buildProtoMarketRuleMessage(marketRuleID int64, increments []models.PriceIncrement) []byte {
-	payload := make([]byte, 0, 64)
-	payload = protowire.AppendTag(payload, 1, protowire.VarintType)
-	payload = protowire.AppendVarint(payload, uint64(marketRuleID))
+	pb := &protobuf.MarketRule{MarketRuleId: protofmt.Int32(int32(marketRuleID))}
 	for _, increment := range increments {
-		item := make([]byte, 0, 24)
-		item = protowire.AppendTag(item, 1, protowire.Fixed64Type)
-		item = protowire.AppendFixed64(item, math.Float64bits(increment.LowEdge))
-		item = protowire.AppendTag(item, 2, protowire.Fixed64Type)
-		item = protowire.AppendFixed64(item, math.Float64bits(increment.Increment))
-		payload = protowire.AppendTag(payload, 2, protowire.BytesType)
-		payload = protowire.AppendBytes(payload, item)
+		pb.PriceIncrements = append(pb.PriceIncrements, &protobuf.PriceIncrement{
+			LowEdge:   protofmt.Float(increment.LowEdge),
+			Increment: protofmt.Float(increment.Increment),
+		})
 	}
-
-	msg := make([]byte, 4, 4+len(payload))
-	binary.BigEndian.PutUint32(msg, common.MARKET_RULE+common.PROTOBUF_MSG_ID)
-	msg = append(msg, payload...)
-	return msg
+	return buildProtoMessage(common.MARKET_RULE, pb)
 }
 
 func waitMarketRuleResult(t *testing.T, ch <-chan struct {

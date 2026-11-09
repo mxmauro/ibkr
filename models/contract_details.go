@@ -46,6 +46,7 @@ type ContractDetails struct {
 	MinAlgoSize               string
 	LastPricePrecision        string
 	LastSizePrecision         string
+	SettlementMethod          string
 
 	SecIDList TagValueList
 
@@ -144,6 +145,7 @@ func NewContractDetailsFromProtobufDecoder(
 	cd.MinAlgoSize = msgDec.String(pb.MinAlgoSize)
 	cd.LastPricePrecision = msgDec.String(pb.LastPricePrecision)
 	cd.LastSizePrecision = msgDec.String(pb.LastSizePrecision)
+	cd.SettlementMethod = msgDec.String(pb.SettlementMethod)
 	// bond fields
 	cd.Cusip = msgDec.String(pb.Cusip)
 	cd.Ratings = msgDec.String(pb.Ratings)

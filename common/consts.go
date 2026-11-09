@@ -7,22 +7,23 @@ const (
 )
 
 const (
-	ServerVersionProtobuf                  = 201
-	ServerVersionZeroStrike                = 202
-	ServerVersionProtobufPlaceOrder        = 203
-	ServerVersionProtobufCompletedOrder    = 204
-	ServerVersionProtobufContractData      = 205
-	ServerVersionProtobufMarketData        = 206
-	ServerVersionProtobufAccountsPositions = 207
-	ServerVersionProtobufHistoricalData    = 208
-	ServerVersionProtobufNewsData          = 209
-	ServerVersionProtobufScanData          = 210
-	ServerVersionProtobufRestMessages1     = 211
-	ServerVersionProtobufRestMessages2     = 212
-	ServerVersionProtobufRestMessages3     = 213
+	ServerVersionProtobuf                   = 201
+	ServerVersionZeroStrike                 = 202
+	ServerVersionProtobufPlaceOrder         = 203
+	ServerVersionProtobufCompletedOrder     = 204
+	ServerVersionProtobufContractData       = 205
+	ServerVersionProtobufMarketData         = 206
+	ServerVersionProtobufAccountsPositions  = 207
+	ServerVersionProtobufHistoricalData     = 208
+	ServerVersionProtobufNewsData           = 209
+	ServerVersionProtobufScanData           = 210
+	ServerVersionProtobufRestMessages1      = 211
+	ServerVersionProtobufRestMessages2      = 212
+	ServerVersionProtobufRestMessages3      = 213
+	ServerVersionConditionsIncludeOvernight = 226
 
 	MinClientVersion = ServerVersionProtobuf
-	MaxClientVersion = ServerVersionProtobufRestMessages2
+	MaxClientVersion = ServerVersionConditionsIncludeOvernight
 
 	MinServerVersion = ServerVersionProtobuf
 )
@@ -238,6 +239,13 @@ var PROTOBUF_MSG_IDS = map[uint32]int32{
 	REQ_HISTORICAL_TICKS:         ServerVersionProtobufHistoricalData,
 	REQ_TICK_BY_TICK_DATA:        ServerVersionProtobufHistoricalData,
 	CANCEL_TICK_BY_TICK_DATA:     ServerVersionProtobufHistoricalData,
+	REQ_NEWS_ARTICLE:             ServerVersionProtobufNewsData,
+	REQ_NEWS_PROVIDERS:           ServerVersionProtobufNewsData,
 	REQ_SEC_DEF_OPT_PARAMS:       ServerVersionProtobufRestMessages2,
 	REQ_MATCHING_SYMBOLS:         ServerVersionProtobufRestMessages2,
+	REQ_SMART_COMPONENTS:         ServerVersionProtobufRestMessages2,
+	REQ_MARKET_RULE:              ServerVersionProtobufRestMessages2,
+	START_API:                    ServerVersionProtobufRestMessages3,
+	REQ_MKT_DEPTH_EXCHANGES:      ServerVersionProtobufRestMessages3,
+	REQ_CURRENT_TIME_IN_MILLIS:   ServerVersionProtobufRestMessages3,
 }

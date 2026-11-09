@@ -1,9 +1,9 @@
 package models
 
-// -----------------------------------------------------------------------------
-
 // These sample builders mirror common IB order templates.
 // Test exchange-specific combinations in paper trading before using them elsewhere.
+
+// -----------------------------------------------------------------------------
 
 // AtAuction creates an auction order that works the open and may rest as a limit order afterward.
 // Products: FUT, STK.

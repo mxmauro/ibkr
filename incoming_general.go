@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protowire"
-
 	"github.com/mxmauro/ibkr/common"
 	"github.com/mxmauro/ibkr/models"
 	"github.com/mxmauro/ibkr/proto/protobuf"
@@ -18,6 +16,12 @@ import (
 	"github.com/mxmauro/ibkr/utils/encoders/message"
 	"github.com/mxmauro/ibkr/utils/encoders/protofmt"
 )
+
+// -----------------------------------------------------------------------------
+
+type marketRuleEventHandler interface {
+	MarketRule(marketRuleID int64, priceIncrements []models.PriceIncrement)
+}
 
 // -----------------------------------------------------------------------------
 
@@ -87,6 +91,12 @@ func (c *Client) processIncomingMessage(msg []byte) error {
 			return c.processTickGenericProtobuf(msgDec)
 		case common.TICK_STRING:
 			return c.processTickStringProtobuf(msgDec)
+		case common.TICK_NEWS:
+			return c.processTickNewsProtobuf(msgDec)
+		case common.NEWS_ARTICLE:
+			return c.processNewsArticleProtobuf(msgDec)
+		case common.NEWS_PROVIDERS:
+			return c.processNewsProvidersProtobuf(msgDec)
 		case common.ORDER_STATUS:
 			return c.processOrderStatusProtobuf(msgDec)
 		case common.ERR_MSG:
@@ -167,6 +177,12 @@ func (c *Client) processIncomingMessage(msg []byte) error {
 			return c.processHistogramDataProtobuf(msgDec)
 		case common.MARKET_RULE:
 			return c.processMarketRuleProtobuf(msgDec)
+		case common.CURRENT_TIME_IN_MILLIS:
+			return c.processCurrentTimeInMillisProtobuf(msgDec)
+		case common.MKT_DEPTH_EXCHANGES:
+			return c.processMktDepthExchangesProtobuf(msgDec)
+		case common.SMART_COMPONENTS:
+			return c.processSmartComponentsProtobuf(msgDec)
 		}
 	} else {
 		msgDec := message.NewDecoder(msg[4:])
@@ -183,6 +199,12 @@ func (c *Client) processIncomingMessage(msg []byte) error {
 			return c.processTickGenericMsg(msgDec)
 		case common.TICK_STRING:
 			return c.processTickStringMsg(msgDec)
+		case common.TICK_NEWS:
+			return c.processTickNewsMsg(msgDec)
+		case common.NEWS_ARTICLE:
+			return c.processNewsArticleMsg(msgDec)
+		case common.NEWS_PROVIDERS:
+			return c.processNewsProvidersMsg(msgDec)
 		case common.TICK_EFP:
 			return c.processTickEfpMsg(msgDec)
 		case common.ORDER_STATUS:
@@ -2060,12 +2082,6 @@ func (c *Client) processTickByTickDataCommon(reqID int32, data models.TickByTick
 	return nil
 }
 
-// -----------------------------------------------------------------------------
-
-type marketRuleEventHandler interface {
-	MarketRule(marketRuleID int64, priceIncrements []models.PriceIncrement)
-}
-
 func (c *Client) processMarketRuleMsg(msgDec *message.Decoder) error {
 	marketRuleID := msgDec.Int64()
 	priceIncrementsCount := int(msgDec.Int64())
@@ -2089,115 +2105,24 @@ func (c *Client) processMarketRuleMsg(msgDec *message.Decoder) error {
 }
 
 func (c *Client) processMarketRuleProtobuf(msgDec *protofmt.Decoder) error {
-	marketRuleID, priceIncrements, err := decodeMarketRuleProtoMessage(msgDec)
-	if err != nil {
-		return wrapDecoderErr("processMarketRuleProtobuf", err)
+	pb := protobuf.MarketRule{}
+	msgDec.Unmarshal(&pb)
+	marketRuleID := int64(msgDec.Int32(pb.MarketRuleId))
+	if marketRuleID <= 0 {
+		msgDec.SetErr(fmt.Errorf("received invalid market rule id: %d", marketRuleID))
+	}
+	priceIncrements := make([]models.PriceIncrement, 0, len(pb.PriceIncrements))
+	for _, priceIncrement := range pb.PriceIncrements {
+		priceIncrements = append(priceIncrements, models.PriceIncrement{
+			LowEdge:   msgDec.Float(priceIncrement.LowEdge),
+			Increment: msgDec.Float(priceIncrement.Increment),
+		})
 	}
 	if msgDec.Err() != nil {
 		return wrapDecoderErr("processMarketRuleProtobuf", msgDec.Err())
 	}
 
 	return c.processMarketRuleCommon(marketRuleID, priceIncrements)
-}
-
-func decodeMarketRuleProtoMessage(msgDec *protofmt.Decoder) (int64, []models.PriceIncrement, error) {
-	var marketRuleID int64
-	var priceIncrements []models.PriceIncrement
-	msg := msgDecRawBytes(msgDec)
-
-	for len(msg) > 0 {
-		num, typ, n := protowire.ConsumeTag(msg)
-		if n < 0 {
-			return 0, nil, protowire.ParseError(n)
-		}
-		msg = msg[n:]
-
-		switch num {
-		case 1:
-			if typ != protowire.VarintType {
-				return 0, nil, fmt.Errorf("invalid market rule id wire type: %d", typ)
-			}
-			value, m := protowire.ConsumeVarint(msg)
-			if m < 0 {
-				return 0, nil, protowire.ParseError(m)
-			}
-			msg = msg[m:]
-			marketRuleID = int64(value)
-		case 2:
-			if typ != protowire.BytesType {
-				return 0, nil, fmt.Errorf("invalid price increments wire type: %d", typ)
-			}
-			value, m := protowire.ConsumeBytes(msg)
-			if m < 0 {
-				return 0, nil, protowire.ParseError(m)
-			}
-			msg = msg[m:]
-			priceIncrement, err := decodeMarketRulePriceIncrementProto(value)
-			if err != nil {
-				return 0, nil, err
-			}
-			priceIncrements = append(priceIncrements, priceIncrement)
-		default:
-			m := protowire.ConsumeFieldValue(num, typ, msg)
-			if m < 0 {
-				return 0, nil, protowire.ParseError(m)
-			}
-			msg = msg[m:]
-		}
-	}
-
-	if marketRuleID <= 0 {
-		return 0, nil, fmt.Errorf("received invalid market rule id: %d", marketRuleID)
-	}
-
-	return marketRuleID, priceIncrements, nil
-}
-
-func decodeMarketRulePriceIncrementProto(msg []byte) (models.PriceIncrement, error) {
-	priceIncrement := models.PriceIncrement{}
-
-	for len(msg) > 0 {
-		num, typ, n := protowire.ConsumeTag(msg)
-		if n < 0 {
-			return models.PriceIncrement{}, protowire.ParseError(n)
-		}
-		msg = msg[n:]
-
-		switch num {
-		case 1:
-			if typ != protowire.Fixed64Type {
-				return models.PriceIncrement{}, fmt.Errorf("invalid low edge wire type: %d", typ)
-			}
-			value, m := protowire.ConsumeFixed64(msg)
-			if m < 0 {
-				return models.PriceIncrement{}, protowire.ParseError(m)
-			}
-			msg = msg[m:]
-			priceIncrement.LowEdge = math.Float64frombits(value)
-		case 2:
-			if typ != protowire.Fixed64Type {
-				return models.PriceIncrement{}, fmt.Errorf("invalid increment wire type: %d", typ)
-			}
-			value, m := protowire.ConsumeFixed64(msg)
-			if m < 0 {
-				return models.PriceIncrement{}, protowire.ParseError(m)
-			}
-			msg = msg[m:]
-			priceIncrement.Increment = math.Float64frombits(value)
-		default:
-			m := protowire.ConsumeFieldValue(num, typ, msg)
-			if m < 0 {
-				return models.PriceIncrement{}, protowire.ParseError(m)
-			}
-			msg = msg[m:]
-		}
-	}
-
-	return priceIncrement, nil
-}
-
-func msgDecRawBytes(msgDec *protofmt.Decoder) []byte {
-	return msgDec.RawBytes()
 }
 
 func (c *Client) processMarketRuleCommon(marketRuleID int64, priceIncrements []models.PriceIncrement) error {
@@ -2223,6 +2148,17 @@ func (c *Client) processCurrentTimeInMillisMsg(msgDec *message.Decoder) error {
 	ts := msgDec.EpochTimestamp(true)
 	if msgDec.Err() != nil {
 		return wrapDecoderErr("processCurrentTimeInMillisMsg", msgDec.Err())
+	}
+
+	return c.processCurrentTimeInMillisCommon(ts)
+}
+
+func (c *Client) processCurrentTimeInMillisProtobuf(msgDec *protofmt.Decoder) error {
+	pb := protobuf.CurrentTimeInMillis{}
+	msgDec.Unmarshal(&pb)
+	ts := msgDec.EpochTimestamp(pb.CurrentTimeInMillis, true)
+	if msgDec.Err() != nil {
+		return wrapDecoderErr("processCurrentTimeInMillisProtobuf", msgDec.Err())
 	}
 
 	return c.processCurrentTimeInMillisCommon(ts)

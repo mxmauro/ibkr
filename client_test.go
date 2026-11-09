@@ -2,6 +2,7 @@ package ibkr_test
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"strings"
@@ -15,9 +16,16 @@ import (
 
 // -----------------------------------------------------------------------------
 
-var liveTrading = flag.Bool("live", false, "run tests against the live IB Gateway on port 4001 instead of paper trading on port 4002")
+var (
+	liveTrading = flag.Bool("live", false, "run tests against the live IB Gateway on port 4001 instead of paper trading on port 4002")
+	testMode    = flag.String("Mode", "ReadWrite", "test mode: ReadWrite or ReadOnly")
+)
 
 func TestSuite(t *testing.T) {
+	if !isValidTestMode(*testMode) {
+		t.Fatalf("invalid -Mode value %q; use ReadWrite or ReadOnly", *testMode)
+	}
+
 	client := connect(t)
 	t.Cleanup(func() {
 		client.Destroy()
@@ -112,11 +120,32 @@ func TestSuite(t *testing.T) {
 		testSecurityDefinitionOptionParameters(t, client)
 	})
 	t.Run("Paper-orders", func(t *testing.T) {
+		if isReadOnlyTestMode() {
+			t.Skip("skipping paper order placement and cancellation in ReadOnly mode")
+		}
+
 		swm := newStopWatchMeasure(t, sw)
 		defer swm.End()
 
 		testPaperOrders(t)
 	})
+}
+
+func isValidTestMode(mode string) bool {
+	return strings.EqualFold(mode, "ReadWrite") || strings.EqualFold(mode, "ReadOnly")
+}
+
+func isReadOnlyTestMode() bool {
+	return strings.EqualFold(*testMode, "ReadOnly")
+}
+
+func skipIfSubscriptionRequired(t *testing.T, err error) bool {
+	t.Helper()
+	if !errors.Is(err, ibkr.ErrSubscriptionRequired) {
+		return false
+	}
+	testSkip(t, "API data subscription required: "+err.Error())
+	return true
 }
 
 // -----------------------------------------------------------------------------
@@ -213,6 +242,9 @@ func testHistoricalData(t *testing.T, client *ibkr.Client) {
 		OnlyRegularTradingHours: true,
 	})
 	if err != nil {
+		if skipIfSubscriptionRequired(t, err) {
+			return
+		}
 		testError(t, err)
 		return
 	}
@@ -235,6 +267,9 @@ func testHistoricalTicks(t *testing.T, client *ibkr.Client) {
 		IgnoreSize:              false,
 	})
 	if err != nil {
+		if skipIfSubscriptionRequired(t, err) {
+			return
+		}
 		testError(t, err)
 		return
 	}
@@ -346,9 +381,7 @@ func testDepthMarketData(t *testing.T, client *ibkr.Client) {
 		case data, ok := <-resp.Channel:
 			if !ok {
 				if resp.Err() != nil {
-					if reqErr, ok := resp.Err().(*ibkr.RequestError); ok && reqErr.Code == 10089 {
-						testLog(t, "  Skipping expected L2 subscription error:", reqErr)
-					} else {
+					if !skipIfSubscriptionRequired(t, resp.Err()) {
 						testError(t, resp.Err())
 					}
 				}
@@ -385,6 +418,9 @@ func testRealTimeBars(t *testing.T, client *ibkr.Client) {
 	case data, ok := <-resp.Channel:
 		if !ok {
 			if resp.Err() != nil {
+				if skipIfSubscriptionRequired(t, resp.Err()) {
+					return
+				}
 				testError(t, resp.Err())
 			} else {
 				testError(t, "expected realtime bar, got closed channel")
@@ -421,6 +457,9 @@ func testTickByTickData(t *testing.T, client *ibkr.Client) {
 	case data, ok := <-resp.Channel:
 		if !ok {
 			if resp.Err() != nil {
+				if skipIfSubscriptionRequired(t, resp.Err()) {
+					return
+				}
 				testError(t, resp.Err())
 			} else {
 				testError(t, "expected tick-by-tick data, got closed channel")
@@ -461,6 +500,9 @@ func testHistoricalDataKeepUpToDate(t *testing.T, client *ibkr.Client) {
 	case data, ok := <-resp.Channel:
 		if !ok {
 			if resp.Err() != nil {
+				if skipIfSubscriptionRequired(t, resp.Err()) {
+					return
+				}
 				testError(t, resp.Err())
 			} else {
 				testError(t, "expected keep-up-to-date historical data, got closed channel")

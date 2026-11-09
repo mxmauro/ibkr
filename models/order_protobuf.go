@@ -119,6 +119,7 @@ func NewOrderFromProtobufDecoder(msgDec *protofmt.Decoder, pb *protobuf.Order) *
 	order.Conditions = orderConditionsFromProtobuf(msgDec, pb.Conditions)
 	order.ConditionsCancelOrder = msgDec.Bool(pb.ConditionsCancelOrder)
 	order.ConditionsIgnoreRth = msgDec.Bool(pb.ConditionsIgnoreRth)
+	order.ConditionsIncludeOvernight = msgDec.Bool(pb.ConditionsIncludeOvernight)
 	order.ModelCode = msgDec.String(pb.ModelCode)
 	order.ExtOperator = msgDec.String(pb.ExtOperator)
 	order.SoftDollarTier = NewSoftDollarTierFromProtobufDecoder(msgDec, pb.SoftDollarTier)
@@ -274,6 +275,7 @@ func (o *Order) Proto() *protobuf.Order {
 		Conditions:                     orderConditionsToProtobuf(o.Conditions),
 		ConditionsCancelOrder:          protofmt.Bool(o.ConditionsCancelOrder),
 		ConditionsIgnoreRth:            protofmt.Bool(o.ConditionsIgnoreRth),
+		ConditionsIncludeOvernight:     protofmt.Bool(o.ConditionsIncludeOvernight),
 		ModelCode:                      protofmt.String(o.ModelCode),
 		ExtOperator:                    protofmt.String(o.ExtOperator),
 		SoftDollarTier:                 o.SoftDollarTier.Proto(),

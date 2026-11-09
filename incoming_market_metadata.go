@@ -105,6 +105,26 @@ func (c *Client) processMktDepthExchangesCommon(data []models.DepthMktDataDescri
 	return nil
 }
 
+func (c *Client) processMktDepthExchangesProtobuf(msgDec *protofmt.Decoder) error {
+	pb := protobuf.MarketDepthExchanges{}
+	msgDec.Unmarshal(&pb)
+	data := make([]models.DepthMktDataDescription, 0, len(pb.DepthMarketDataDescriptions))
+	for _, entry := range pb.DepthMarketDataDescriptions {
+		data = append(data, models.DepthMktDataDescription{
+			Exchange:        msgDec.String(entry.Exchange),
+			SecType:         models.SecurityType(msgDec.String(entry.SecType)),
+			ListingExchange: msgDec.String(entry.ListingExch),
+			ServiceDataType: msgDec.String(entry.ServiceDataType),
+			AggGroup:        msgDec.Int32Max(entry.AggGroup),
+		})
+	}
+	if msgDec.Err() != nil {
+		return wrapDecoderErr("processMktDepthExchangesProtobuf", msgDec.Err())
+	}
+
+	return c.processMktDepthExchangesCommon(data)
+}
+
 func (c *Client) processSmartComponentsMsg(msgDec *message.Decoder) error {
 	reqID := msgDec.RequestID(false)
 	count := int(msgDec.Int64())
@@ -136,6 +156,25 @@ func (c *Client) processSmartComponentsCommon(reqID int32, data []models.SmartCo
 		return true, nil
 	})
 	return nil
+}
+
+func (c *Client) processSmartComponentsProtobuf(msgDec *protofmt.Decoder) error {
+	pb := protobuf.SmartComponents{}
+	msgDec.Unmarshal(&pb)
+	reqID := msgDec.RequestID(pb.ReqId, false)
+	data := make([]models.SmartComponent, 0, len(pb.SmartComponents))
+	for _, component := range pb.SmartComponents {
+		data = append(data, models.SmartComponent{
+			BitNumber:      int64(msgDec.Int32(component.BitNumber)),
+			Exchange:       msgDec.String(component.Exchange),
+			ExchangeLetter: msgDec.String(component.ExchangeLetter),
+		})
+	}
+	if msgDec.Err() != nil {
+		return wrapDecoderErr("processSmartComponentsProtobuf", msgDec.Err())
+	}
+
+	return c.processSmartComponentsCommon(reqID, data)
 }
 
 func decodeLegacyContract(msgDec *message.Decoder, mode int) *models.Contract {

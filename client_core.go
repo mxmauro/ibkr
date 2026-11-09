@@ -193,8 +193,15 @@ func (c *Client) RequestCurrentTime(ctx context.Context) (time.Time, error) {
 		Response: resp,
 	})
 
-	msgEnc := message.NewEncoder().
-		RawUInt32(common.REQ_CURRENT_TIME_IN_MILLIS)
+	var msgEnc *message.Encoder
+	if c.isProtoBufAvailable(common.REQ_CURRENT_TIME_IN_MILLIS) {
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.REQ_CURRENT_TIME_IN_MILLIS + common.PROTOBUF_MSG_ID).
+			Proto(&protobuf.CurrentTimeInMillisRequest{})
+	} else {
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.REQ_CURRENT_TIME_IN_MILLIS)
+	}
 	if msgEnc.Err() != nil {
 		return time.Time{}, msgEnc.Err()
 	}
@@ -257,6 +264,8 @@ func (c *Client) RequestManagedAccounts(ctx context.Context) ([]string, error) {
 
 	return resp.Accounts, nil
 }
+
+// -----------------------------------------------------------------------------
 
 func (c *Client) isProtoBufAvailable(msgType uint32) bool {
 	minServerVer, ok := common.PROTOBUF_MSG_IDS[msgType]

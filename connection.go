@@ -10,7 +10,9 @@ import (
 
 	"github.com/mxmauro/ibkr/common"
 	"github.com/mxmauro/ibkr/connection"
+	"github.com/mxmauro/ibkr/proto/protobuf"
 	"github.com/mxmauro/ibkr/utils/encoders/message"
+	"github.com/mxmauro/ibkr/utils/encoders/protofmt"
 )
 
 // -----------------------------------------------------------------------------
@@ -127,13 +129,24 @@ func (c *Client) initialHandshake(ctx context.Context, conn *connection.Connecti
 }
 
 func (c *Client) startApi(conn *connection.Connection, opts Options) error {
-	const VERSION = 2
+	var msgEnc *message.Encoder
 
-	msgEnc := message.NewEncoder().
-		RawUInt32(uint32(common.START_API)).
-		Int(VERSION).
-		Int(int(c.clientID)).
-		String(opts.OptionalCapabilities)
+	if c.isProtoBufAvailable(common.START_API) {
+		pb := protobuf.StartApiRequest{
+			ClientId:             protofmt.Int32(c.clientID),
+			OptionalCapabilities: protofmt.String(opts.OptionalCapabilities),
+		}
+		msgEnc = message.NewEncoder().
+			RawUInt32(uint32(common.START_API + common.PROTOBUF_MSG_ID)).
+			Proto(&pb)
+	} else {
+		const version = 2
+		msgEnc = message.NewEncoder().
+			RawUInt32(uint32(common.START_API)).
+			Int(version).
+			Int(int(c.clientID)).
+			String(opts.OptionalCapabilities)
+	}
 
 	return conn.Send(msgEnc.Bytes())
 }
@@ -154,13 +167,22 @@ func (c *Client) waitUntilNextReqID(ctx context.Context, conn *connection.Connec
 			return err
 		}
 		if msgID == common.NEXT_VALID_ID {
+			var reqID int32
+
 			if usingProtobuf {
-				return errUnsupportedNextValidIDMessageProtobuf
-			}
-			msgDec := message.NewDecoder(msg[4:])
-			reqID := msgDec.Int32()
-			if msgDec.Err() != nil {
-				return msgDec.Err()
+				msgDec := protofmt.NewDecoder(msg[4:])
+				pb := protobuf.NextValidId{}
+				msgDec.Unmarshal(&pb)
+				reqID = msgDec.Int32(pb.OrderId)
+				if msgDec.Err() != nil {
+					return msgDec.Err()
+				}
+			} else {
+				msgDec := message.NewDecoder(msg[4:])
+				reqID = msgDec.Int32()
+				if msgDec.Err() != nil {
+					return msgDec.Err()
+				}
 			}
 			if reqID < 1 {
 				reqID = 1

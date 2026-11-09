@@ -160,9 +160,10 @@ type Order struct {
 	AdjustableTrailingUnit       int32
 	LmtPriceOffset               *float64
 
-	Conditions            []OrderCondition
-	ConditionsCancelOrder bool
-	ConditionsIgnoreRth   bool
+	Conditions                 []OrderCondition
+	ConditionsCancelOrder      bool
+	ConditionsIgnoreRth        bool
+	ConditionsIncludeOvernight bool
 
 	// models
 	ModelCode string

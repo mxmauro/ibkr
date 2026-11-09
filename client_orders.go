@@ -32,6 +32,9 @@ func (c *Client) PlaceOrder(opts models.PlaceOrderRequestOptions) (int32, error)
 	if opts.Order.TotalQuantity == nil {
 		return 0, errInvalidTotalQuantity
 	}
+	if opts.Order.ConditionsIncludeOvernight && c.serverVersion < common.ServerVersionConditionsIncludeOvernight {
+		return 0, errConditionsIncludeOvernightUnsupported
+	}
 
 	if !c.rp.Acquire() {
 		return 0, net.ErrClosed

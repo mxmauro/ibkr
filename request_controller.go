@@ -11,6 +11,14 @@ import (
 
 // -----------------------------------------------------------------------------
 
+const (
+	RequestTypeRequestWithID RequestType = iota
+	RequestTypeRequestWithoutID
+	RequestTypeRequestWithTickerID
+)
+
+// -----------------------------------------------------------------------------
+
 type RequestManager struct {
 	mtx           sync.Mutex
 	reqsWithID    map[int32]*Request
@@ -51,12 +59,6 @@ type RequestMatchCallback func(req *Request) bool
 type RequestCompleteCallback func(req *Request, err error)
 
 type RequestType int
-
-const (
-	RequestTypeRequestWithID RequestType = iota
-	RequestTypeRequestWithoutID
-	RequestTypeRequestWithTickerID
-)
 
 // -----------------------------------------------------------------------------
 

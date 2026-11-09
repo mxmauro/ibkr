@@ -19,6 +19,78 @@ import (
 
 // -----------------------------------------------------------------------------
 
+type histogramPoint struct {
+	price float64
+	size  string
+}
+
+// -----------------------------------------------------------------------------
+
+func TestRequestCurrentTimeCompletesFromTextReply(t *testing.T) {
+	client, serverConn, cleanup := newRequestTestClientWithVersion(t, common.ServerVersionProtobufRestMessages3-1)
+	defer cleanup()
+
+	resultCh := make(chan struct {
+		ts  time.Time
+		err error
+	}, 1)
+	go func() {
+		ts, err := client.RequestCurrentTime(context.Background())
+		resultCh <- struct {
+			ts  time.Time
+			err error
+		}{ts: ts, err: err}
+	}()
+
+	payload := readFramedPayload(t, serverConn)
+	if got := binary.BigEndian.Uint32(payload[:4]); got != common.REQ_CURRENT_TIME_IN_MILLIS {
+		t.Fatalf("unexpected outbound msg id: got %d", got)
+	}
+	want := time.Unix(1_700_000_000, 123_000_000).UTC()
+	if err := client.processIncomingMessage(message.NewRawEncoder().RawUInt32(common.CURRENT_TIME_IN_MILLIS).Int64(want.UnixMilli()).Bytes()); err != nil {
+		t.Fatalf("processIncomingMessage(current time) failed: %v", err)
+	}
+
+	result := <-resultCh
+	if result.err != nil || !result.ts.Equal(want) {
+		t.Fatalf("unexpected current time result: %v, %v", result.ts, result.err)
+	}
+}
+
+func TestRequestCurrentTimeCompletesFromProtobufReply(t *testing.T) {
+	client, serverConn, cleanup := newRequestTestClientWithVersion(t, common.ServerVersionProtobufRestMessages3)
+	defer cleanup()
+
+	resultCh := make(chan struct {
+		ts  time.Time
+		err error
+	}, 1)
+	go func() {
+		ts, err := client.RequestCurrentTime(context.Background())
+		resultCh <- struct {
+			ts  time.Time
+			err error
+		}{ts: ts, err: err}
+	}()
+
+	payload := readFramedPayload(t, serverConn)
+	if got := binary.BigEndian.Uint32(payload[:4]); got != common.REQ_CURRENT_TIME_IN_MILLIS+common.PROTOBUF_MSG_ID {
+		t.Fatalf("unexpected outbound msg id: got %d", got)
+	}
+	if err := proto.Unmarshal(payload[4:], &protobuf.CurrentTimeInMillisRequest{}); err != nil {
+		t.Fatalf("failed decoding protobuf current time request: %v", err)
+	}
+	want := time.Unix(1_700_000_000, 123_000_000).UTC()
+	if err := client.processIncomingMessage(buildProtoMessage(common.CURRENT_TIME_IN_MILLIS, &protobuf.CurrentTimeInMillis{CurrentTimeInMillis: protofmt.Int64(want.UnixMilli())})); err != nil {
+		t.Fatalf("processIncomingMessage(current time) failed: %v", err)
+	}
+
+	result := <-resultCh
+	if result.err != nil || !result.ts.Equal(want) {
+		t.Fatalf("unexpected current time result: %v, %v", result.ts, result.err)
+	}
+}
+
 func TestRequestPositionsCompletesFromTextReply(t *testing.T) {
 	client, serverConn, cleanup := newRequestTestClientWithVersion(t, common.ServerVersionProtobufAccountsPositions-1)
 	defer cleanup()
@@ -341,6 +413,45 @@ func TestRequestMktDepthExchangesCompletesFromTextReply(t *testing.T) {
 	}
 }
 
+func TestRequestMktDepthExchangesCompletesFromProtobufReply(t *testing.T) {
+	client, serverConn, cleanup := newRequestTestClientWithVersion(t, common.ServerVersionProtobufRestMessages3)
+	defer cleanup()
+
+	resultCh := make(chan struct {
+		resp *models.MktDepthExchangesResponse
+		err  error
+	}, 1)
+	go func() {
+		resp, err := client.RequestMktDepthExchanges(context.Background())
+		resultCh <- struct {
+			resp *models.MktDepthExchangesResponse
+			err  error
+		}{resp: resp, err: err}
+	}()
+
+	assertEmptyProtobufMktDepthExchangesRequestPayload(t, readFramedPayload(t, serverConn))
+	agg := int32(7)
+	if err := client.processIncomingMessage(buildProtoMessage(common.MKT_DEPTH_EXCHANGES, &protobuf.MarketDepthExchanges{
+		DepthMarketDataDescriptions: []*protobuf.DepthMarketDataDescription{{
+			Exchange:        protofmt.String("ARCA"),
+			SecType:         protofmt.String(string(models.SecurityTypeStock)),
+			ListingExch:     protofmt.String("NYSE"),
+			ServiceDataType: protofmt.String("Deep2"),
+			AggGroup:        protofmt.Int32(agg),
+		}},
+	})); err != nil {
+		t.Fatalf("processIncomingMessage(mkt depth exchanges) failed: %v", err)
+	}
+
+	result := waitMktDepthExchangesResult(t, resultCh)
+	if result.err != nil {
+		t.Fatalf("RequestMktDepthExchanges failed: %v", result.err)
+	}
+	if got := result.resp.Exchanges; !reflect.DeepEqual(got, []models.DepthMktDataDescription{{Exchange: "ARCA", SecType: models.SecurityTypeStock, ListingExchange: "NYSE", ServiceDataType: "Deep2", AggGroup: &agg}}) {
+		t.Fatalf("unexpected exchanges: %#v", got)
+	}
+}
+
 func TestRequestSmartComponentsCompletesFromTextReply(t *testing.T) {
 	client, serverConn, cleanup := newRequestTestClientWithVersion(t, common.ServerVersionProtobufHistoricalData)
 	defer cleanup()
@@ -372,6 +483,43 @@ func TestRequestSmartComponentsCompletesFromTextReply(t *testing.T) {
 	}
 	if !reflect.DeepEqual(result.resp.Components, []models.SmartComponent{{BitNumber: 1, Exchange: "ISLAND", ExchangeLetter: "I"}}) {
 		t.Fatalf("unexpected smart components: %#v", result.resp.Components)
+	}
+}
+
+func TestRequestSmartComponentsCompletesFromProtobufReply(t *testing.T) {
+	client, serverConn, cleanup := newRequestTestClientWithVersion(t, common.ServerVersionProtobufRestMessages2)
+	defer cleanup()
+
+	resultCh := make(chan struct {
+		resp *models.SmartComponentsResponse
+		err  error
+	}, 1)
+	go func() {
+		resp, err := client.RequestSmartComponents(context.Background(), models.SmartComponentsRequestOptions{BBOExchange: "a6"})
+		resultCh <- struct {
+			resp *models.SmartComponentsResponse
+			err  error
+		}{resp: resp, err: err}
+	}()
+
+	req := assertProtobufSmartComponentsRequestPayload(t, readFramedPayload(t, serverConn), "a6")
+	if err := client.processIncomingMessage(buildProtoMessage(common.SMART_COMPONENTS, &protobuf.SmartComponents{
+		ReqId: req.ReqId,
+		SmartComponents: []*protobuf.SmartComponent{{
+			BitNumber:      protofmt.Int32(1),
+			Exchange:       protofmt.String("ISLAND"),
+			ExchangeLetter: protofmt.String("I"),
+		}},
+	})); err != nil {
+		t.Fatalf("processIncomingMessage(smart components) failed: %v", err)
+	}
+
+	result := waitSmartComponentsResult(t, resultCh)
+	if result.err != nil {
+		t.Fatalf("RequestSmartComponents failed: %v", result.err)
+	}
+	if result.resp.ReqID != req.GetReqId() || !reflect.DeepEqual(result.resp.Components, []models.SmartComponent{{BitNumber: 1, Exchange: "ISLAND", ExchangeLetter: "I"}}) {
+		t.Fatalf("unexpected smart components response: %#v", result.resp)
 	}
 }
 
@@ -452,11 +600,6 @@ func TestRequestAccountUpdatesContextCancellationAdvancesQueuedNoIDRequests(t *t
 }
 
 // -----------------------------------------------------------------------------
-
-type histogramPoint struct {
-	price float64
-	size  string
-}
 
 func newRequestTestClientWithVersion(t *testing.T, serverVersion int32) (*Client, net.Conn, func()) {
 	t.Helper()
@@ -674,6 +817,16 @@ func assertTextMktDepthExchangesRequestPayload(t *testing.T, payload []byte) {
 	}
 }
 
+func assertEmptyProtobufMktDepthExchangesRequestPayload(t *testing.T, payload []byte) {
+	t.Helper()
+	if got := binary.BigEndian.Uint32(payload[:4]); got != common.REQ_MKT_DEPTH_EXCHANGES+common.PROTOBUF_MSG_ID {
+		t.Fatalf("unexpected outbound msg id: got %d", got)
+	}
+	if err := proto.Unmarshal(payload[4:], &protobuf.MarketDepthExchangesRequest{}); err != nil {
+		t.Fatalf("failed decoding protobuf depth exchanges request: %v", err)
+	}
+}
+
 func assertTextSmartComponentsRequestPayload(t *testing.T, payload []byte, exchange string) int32 {
 	t.Helper()
 	if got := binary.BigEndian.Uint32(payload[:4]); got != common.REQ_SMART_COMPONENTS {
@@ -688,6 +841,21 @@ func assertTextSmartComponentsRequestPayload(t *testing.T, payload []byte, excha
 		t.Fatalf("failed decoding smart components request: %v", msgDec.Err())
 	}
 	return reqID
+}
+
+func assertProtobufSmartComponentsRequestPayload(t *testing.T, payload []byte, exchange string) *protobuf.SmartComponentsRequest {
+	t.Helper()
+	if got := binary.BigEndian.Uint32(payload[:4]); got != common.REQ_SMART_COMPONENTS+common.PROTOBUF_MSG_ID {
+		t.Fatalf("unexpected outbound msg id: got %d", got)
+	}
+	pb := &protobuf.SmartComponentsRequest{}
+	if err := proto.Unmarshal(payload[4:], pb); err != nil {
+		t.Fatalf("failed decoding protobuf smart components request: %v", err)
+	}
+	if pb.GetReqId() < 1 || pb.GetBboExchange() != exchange {
+		t.Fatalf("unexpected protobuf smart components request: %#v", pb)
+	}
+	return pb
 }
 
 func assertProtobufAccountUpdatesRequestPayload(t *testing.T, payload []byte, subscribe bool, accountCode string) {

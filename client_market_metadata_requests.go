@@ -33,9 +33,17 @@ func (c *Client) RequestMarketRule(ctx context.Context, opts models.MarketRuleRe
 		Response:     resp,
 	})
 
-	msgEnc := message.NewEncoder().
-		RawUInt32(common.REQ_MARKET_RULE).
-		Int64(opts.MarketRuleID)
+	var msgEnc *message.Encoder
+	if c.isProtoBufAvailable(common.REQ_MARKET_RULE) {
+		pb := protobuf.MarketRuleRequest{MarketRuleId: protofmt.Int32(int32(opts.MarketRuleID))}
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.REQ_MARKET_RULE + common.PROTOBUF_MSG_ID).
+			Proto(&pb)
+	} else {
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.REQ_MARKET_RULE).
+			Int64(opts.MarketRuleID)
+	}
 	if msgEnc.Err() != nil {
 		return nil, msgEnc.Err()
 	}
@@ -143,9 +151,7 @@ func (c *Client) CancelHeadTimestamp(reqID int32) error {
 	return c.sendMessage(msgEnc.Bytes())
 }
 
-func (c *Client) RequestHistogramData(
-	ctx context.Context, opts models.HistogramDataRequestOptions,
-) (*models.HistogramDataResponse, error) {
+func (c *Client) RequestHistogramData(ctx context.Context, opts models.HistogramDataRequestOptions) (*models.HistogramDataResponse, error) {
 	var msgEnc *message.Encoder
 
 	if opts.Contract == nil {
@@ -242,7 +248,14 @@ func (c *Client) RequestMktDepthExchanges(ctx context.Context) (*models.MktDepth
 		Response: resp,
 	})
 
-	msgEnc := message.NewEncoder().RawUInt32(common.REQ_MKT_DEPTH_EXCHANGES)
+	var msgEnc *message.Encoder
+	if c.isProtoBufAvailable(common.REQ_MKT_DEPTH_EXCHANGES) {
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.REQ_MKT_DEPTH_EXCHANGES + common.PROTOBUF_MSG_ID).
+			Proto(&protobuf.MarketDepthExchangesRequest{})
+	} else {
+		msgEnc = message.NewEncoder().RawUInt32(common.REQ_MKT_DEPTH_EXCHANGES)
+	}
 	if msgEnc.Err() != nil {
 		return nil, msgEnc.Err()
 	}
@@ -274,10 +287,21 @@ func (c *Client) RequestSmartComponents(
 		Response: resp,
 	})
 
-	msgEnc := message.NewEncoder().
-		RawUInt32(common.REQ_SMART_COMPONENTS).
-		RequestID(req.ID()).
-		String(opts.BBOExchange)
+	var msgEnc *message.Encoder
+	if c.isProtoBufAvailable(common.REQ_SMART_COMPONENTS) {
+		pb := protobuf.SmartComponentsRequest{
+			ReqId:       protofmt.Int32(req.ID()),
+			BboExchange: protofmt.String(opts.BBOExchange),
+		}
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.REQ_SMART_COMPONENTS + common.PROTOBUF_MSG_ID).
+			Proto(&pb)
+	} else {
+		msgEnc = message.NewEncoder().
+			RawUInt32(common.REQ_SMART_COMPONENTS).
+			RequestID(req.ID()).
+			String(opts.BBOExchange)
+	}
 	if msgEnc.Err() != nil {
 		return nil, msgEnc.Err()
 	}
